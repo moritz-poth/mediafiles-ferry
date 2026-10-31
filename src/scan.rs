@@ -44,7 +44,8 @@ fn volume_name(path: &Path) -> String {
 }
 
 fn entries(dir: &Path) -> io::Result<Vec<PathBuf>> {
-    let mut v = fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<io::Result<Vec<_>>>()?;
+    let with_path = |e: io::Error| io::Error::new(e.kind(), format!("{}: {e}", dir.display()));
+    let mut v = fs::read_dir(dir).map_err(with_path)?.map(|e| e.map(|e| e.path())).collect::<io::Result<Vec<_>>>().map_err(with_path)?;
     v.sort();
     Ok(v)
 }
