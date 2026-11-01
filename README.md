@@ -30,4 +30,8 @@ cargo build --release
 cargo test
 ```
 
+## Lizenz
+
+GPL-3.0 oder neuer – siehe [LICENSE](LICENSE). Veränderte Versionen, die weitergegeben werden, müssen ebenfalls unter der GPL offengelegt werden.
+
 *Avid und Media Composer sind Marken von Avid Technology, Inc. Dieses Projekt steht in keiner Verbindung zu Avid.*
