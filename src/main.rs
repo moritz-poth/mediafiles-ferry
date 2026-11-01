@@ -12,9 +12,10 @@ MediaFiles Ferry – Testversion (Kommandozeile)
   ferry plan LOKAL.json GEGENSEITE.json [Optionen]              zeigen, was fehlt
   ferry collect LOKAL.json GEGENSEITE.json ZIELORDNER [Optionen] fehlende Dateien sammeln
   ferry verify LIEFERORDNER                      Lieferung prüfen
+  ferry import LIEFERORDNER [--map VOLUME=PFAD]  Lieferung in die MXF-Ordner einspielen
 
   --full                   alles neu hashen und auf Beschädigung prüfen
-  --map LOKAL=GEGENSEITE   Volume zuordnen
+  --map LOKAL=GEGENSEITE   Volume zuordnen (bei import: Volume der Lieferung=Einhängepunkt)
   --rename VOLUME/ORDNER   Ordner drüben eindeutig benennen statt zusammenführen
 ";
 
@@ -91,6 +92,16 @@ fn run(args: Vec<String>) -> Result<ExitCode, Box<dyn std::error::Error>> {
             problems.iter().for_each(|p| println!("Problem: {p}"));
             println!("{}", if problems.is_empty() { "Lieferung vollständig und unbeschädigt." } else { "Lieferung fehlerhaft!" });
             if !problems.is_empty() {
+                return Ok(ExitCode::FAILURE);
+            }
+        }
+        Some("import") => {
+            eprintln!("Media Composer muss geschlossen sein.");
+            let r = collect::import(pos.get(1).ok_or(USAGE)?.as_ref(), &opts.volume_map, progress)?;
+            r.problems.iter().for_each(|p| println!("Problem: {p}"));
+            r.tasks.iter().for_each(|t| println!("Aufgabe: {t}"));
+            println!("{}", if r.problems.is_empty() { "Lieferung eingespielt." } else { "Lieferung mit Problemen eingespielt – siehe oben." });
+            if !r.problems.is_empty() {
                 return Ok(ExitCode::FAILURE);
             }
         }
