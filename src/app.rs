@@ -12,9 +12,12 @@ use std::time::Duration;
 
 slint::include_modules!();
 
-/// (Code, Name in der eigenen Sprache, Tausendertrennzeichen)
-/// Neue Sprache: hier eintragen und translations/<code>/LC_MESSAGES/mediafiles-ferry.po anlegen.
-const LANGUAGES: [(&str, &str, char); 2] = [("en", "English", ','), ("de", "Deutsch", '.')];
+/// (Code, Name in der eigenen Sprache, Tausendertrennzeichen, Anleitung)
+/// Neue Sprache: hier eintragen, translations/<code>/LC_MESSAGES/mediafiles-ferry.po und docs/help/<code>.md anlegen.
+const LANGUAGES: [(&str, &str, char, &str); 2] = [
+    ("en", "English", ',', include_str!("../docs/help/en.md")),
+    ("de", "Deutsch", '.', include_str!("../docs/help/de.md")),
+];
 
 // Zeichenzahlen passend zur festen Fensterbreite (Metrics.window-width in ui/app.slint)
 const NAME_CHARS: usize = 20;
@@ -96,6 +99,46 @@ fn refresh(app: &AppWindow, lang: &str) {
     app.set_minutes_since_scan(minutes_since_scan());
 }
 
+/// Zerlegt die Anleitung in Blöcke: "# " = Untertitel, "## " = Abschnittsüberschrift, jeder Absatz ein eigener Block
+/// (StyledText kennt keine Überschriften und keinen Absatzabstand). Backticks fallen weg, damit alles in der App-Schrift bleibt.
+fn help_blocks(markdown: &str) -> (String, Vec<HelpBlock>) {
+    let mut subtitle = String::new();
+    let mut blocks = vec![];
+    let mut paragraph = String::new();
+    let flush = |paragraph: &mut String, blocks: &mut Vec<HelpBlock>| {
+        // "<Ordner>" wäre sonst ein HTML-Tag
+        let text = paragraph.trim().replace('`', "").replace('<', "‹").replace('>', "›");
+        if !text.is_empty() {
+            let body = slint::StyledText::from_markdown(&text).unwrap_or_else(|_| slint::StyledText::from_plain_text(&text));
+            blocks.push(HelpBlock { heading: "".into(), body });
+        }
+        paragraph.clear();
+    };
+    for line in markdown.lines() {
+        if let Some(t) = line.strip_prefix("# ") {
+            subtitle = t.to_uppercase();
+        } else if let Some(h) = line.strip_prefix("## ") {
+            flush(&mut paragraph, &mut blocks);
+            blocks.push(HelpBlock { heading: h.into(), body: Default::default() });
+        } else if line.trim().is_empty() {
+            flush(&mut paragraph, &mut blocks);
+        } else {
+            paragraph.push_str(line);
+            paragraph.push('\n');
+        }
+    }
+    flush(&mut paragraph, &mut blocks);
+    (subtitle, blocks)
+}
+
+fn update_help(help: &HelpWindow, s: &Settings) {
+    let markdown = LANGUAGES.iter().find(|l| l.0 == s.language).unwrap_or(&LANGUAGES[0]).3;
+    let (subtitle, blocks) = help_blocks(markdown);
+    help.set_subtitle(subtitle.into());
+    help.set_blocks(ModelRc::new(VecModel::from(blocks)));
+    help.set_dark(s.dark);
+}
+
 fn current_language(app: &AppWindow) -> String {
     app.get_language().to_string()
 }
@@ -117,13 +160,31 @@ fn main() -> Result<(), slint::PlatformError> {
     set_menus(&app, &settings);
     refresh(&app, &settings.language);
     let settings = Rc::new(RefCell::new(settings));
+    let help: Rc<RefCell<Option<HelpWindow>>> = Rc::default();
+
+    app.on_show_help({
+        let (settings, help) = (settings.clone(), help.clone());
+        move || {
+            let (settings, help) = (settings.clone(), help.clone());
+            slint::Timer::single_shot(Duration::ZERO, move || {
+                let mut help = help.borrow_mut();
+                if help.is_none() {
+                    *help = HelpWindow::new().ok();
+                }
+                if let Some(h) = help.as_ref() {
+                    update_help(h, &settings.borrow());
+                    let _ = h.show();
+                }
+            });
+        }
+    });
 
     // Änderungen aus dem Menü erst nach dem Klick ausführen: Sie benennen die Menüeinträge um,
     // und das während der Menü-Verarbeitung von macOS führte zum Absturz.
     app.on_select_language({
-        let (weak, settings) = (app.as_weak(), settings.clone());
+        let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
         move |index| {
-            let (weak, settings) = (weak.clone(), settings.clone());
+            let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let Some(app) = weak.upgrade() else { return };
                 let code = LANGUAGES.get(index as usize).map_or("en", |l| l.0);
@@ -132,21 +193,23 @@ fn main() -> Result<(), slint::PlatformError> {
                 settings.borrow_mut().language = code.to_string();
                 save_settings(&settings.borrow());
                 set_menus(&app, &settings.borrow());
+                help.borrow().iter().for_each(|h| update_help(h, &settings.borrow()));
                 refresh(&app, code);
             });
         }
     });
 
     app.on_select_dark({
-        let (weak, settings) = (app.as_weak(), settings.clone());
+        let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
         move |dark| {
-            let (weak, settings) = (weak.clone(), settings.clone());
+            let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let Some(app) = weak.upgrade() else { return };
                 app.set_dark(dark);
                 settings.borrow_mut().dark = dark;
                 save_settings(&settings.borrow());
                 set_menus(&app, &settings.borrow());
+                help.borrow().iter().for_each(|h| update_help(h, &settings.borrow()));
             });
         }
     });
@@ -208,6 +271,16 @@ mod tests {
         assert_eq!(super::group_digits(118842, "de"), "118.842");
         assert_eq!(super::group_digits(1234567, "en"), "1,234,567");
         assert_eq!(super::group_digits(999, "de"), "999");
+    }
+
+    #[test]
+    fn help_is_split_at_headings_in_every_language() {
+        for l in super::LANGUAGES {
+            let (subtitle, blocks) = super::help_blocks(l.3);
+            assert!(!subtitle.is_empty(), "{}", l.0);
+            assert!(blocks.iter().filter(|b| !b.heading.is_empty()).count() > 5, "{}", l.0);
+            assert!(!blocks[0].heading.is_empty(), "{}: beginnt mit einer Überschrift", l.0);
+        }
     }
 
     #[test]

@@ -169,6 +169,8 @@ Im Menü **Settings** (Einstellungen):
 - **Language / Sprache:** English, Deutsch
 - **Appearance / Darstellung:** Dunkel (Standard) oder Hell
 
+Im Menü **Help** (Hilfe) öffnet sich die Anleitung in einem eigenen Fenster.
+
 ## 8. Häufige Fragen
 
 **Werden Mediendateien über das Internet übertragen?**

@@ -81,3 +81,9 @@ msgstr "Dunkel"
 
 msgid "Light"
 msgstr "Hell"
+
+msgid "Help"
+msgstr "Hilfe"
+
+msgid "MediaFiles Ferry Help"
+msgstr "MediaFiles Ferry Hilfe"

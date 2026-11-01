@@ -37,7 +37,8 @@ cargo test
 Die Oberfläche ist auf Englisch geschrieben (`@tr("…")` in `ui/app.slint`). Eine neue Sprache:
 
 1. `translations/<code>/LC_MESSAGES/mediafiles-ferry.po` anlegen (Vorlage: `translations/de/…`, oder mit `slint-tr-extractor ui/*.slint` erzeugen)
-2. die Sprache in `LANGUAGES` in `src/app.rs` eintragen
+2. die Anleitung als `docs/help/<code>.md` anlegen (Vorlage: `docs/help/en.md`)
+3. die Sprache in `LANGUAGES` in `src/app.rs` eintragen
 
 ## Lizenz
 

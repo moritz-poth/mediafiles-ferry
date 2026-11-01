@@ -10,6 +10,11 @@ export struct VolumeRow {
     online: bool,
 }
 
+export struct HelpBlock {
+    heading: string,
+    body: styled-text,
+}
+
 export struct MenuChoice {
     title: string,
     checked: bool,
@@ -37,6 +42,19 @@ export global Theme {
     out property <color> online: dark ? #3fb950 : #1f883d;
     out property <color> warning: dark ? #d29922 : #8a5a00;
     out property <color> error: dark ? #f85149 : #c62828;
+}
+
+component Headline inherits VerticalLayout {
+    padding-top: 8px;
+    padding-bottom: 12px;
+    Text {
+        text: "MEDIAFILES FERRY";
+        font-family: "Helvetica Neue";
+        font-size: 31px;
+        font-weight: 300;
+        letter-spacing: 2.5px;
+        color: Theme.text;
+    }
 }
 
 component Section inherits VerticalLayout {
@@ -125,6 +143,7 @@ export component AppWindow inherits Window {
     callback import-delivery();
     callback select-language(int);
     callback select-dark(bool);
+    callback show-help();
 
     init => {
         Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
@@ -156,6 +175,13 @@ export component AppWindow inherits Window {
                 }
             }
         }
+        Menu {
+            title: @tr("Help");
+            MenuItem {
+                title: @tr("MediaFiles Ferry Help");
+                activated => { root.show-help(); }
+            }
+        }
     }
 
     // animierte Punkte hinter "Scanning", damit man sieht, dass etwas läuft
@@ -180,18 +206,7 @@ export component AppWindow inherits Window {
         padding: Metrics.padding;
         spacing: Metrics.spacing;
 
-        VerticalLayout {
-            padding-top: 8px;
-            padding-bottom: 12px;
-            Text {
-                text: "MEDIAFILES FERRY";
-                font-family: "Helvetica Neue";
-                font-size: 31px;
-                font-weight: 300;
-                letter-spacing: 2.5px;
-                color: Theme.text;
-            }
-        }
+        Headline { }
 
         Section {
             title: @tr("THIS SYSTEM");
@@ -285,6 +300,76 @@ export component AppWindow inherits Window {
                     enabled: false;
                     clicked => { root.import-delivery(); }
                 }
+            }
+        }
+    }
+}
+
+// Anleitung: gleiche Schrift, Farben und Abstände wie das Hauptfenster; Inhalt aus docs/help/<sprache>.md.
+export component HelpWindow inherits Window {
+    title: @tr("MediaFiles Ferry Help");
+    default-font-family: "JetBrains Mono";
+    default-font-size: 13px;
+    background: Theme.background;
+    width: 640px;
+    height: 760px;
+
+    in property <bool> dark: true;
+    in property <string> subtitle;
+    in property <[HelpBlock]> blocks;
+
+    // Globale Werte gelten je Fenster, darum auch hier setzen.
+    init => {
+        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
+    }
+    changed dark => {
+        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
+    VerticalLayout {
+        padding: Metrics.padding;
+        padding-bottom: 0;
+        spacing: Metrics.spacing;
+
+        Headline { }
+        Section {
+            title: root.subtitle;
+        }
+        Divider { }
+        // eigene Scrollfläche: die Standard-ScrollView rückt den Inhalt ein
+        Rectangle {
+            vertical-stretch: 1;
+            flick := Flickable {
+                content-height: content.preferred-height;
+                content := VerticalLayout {
+                    x: 0;
+                    width: flick.width - 16px;
+                    padding-bottom: Metrics.padding;
+                    spacing: 12px;
+                    for b in root.blocks: VerticalLayout {
+                        padding-top: b.heading != "" ? 16px : 0;
+                        if b.heading != "": Text {
+                            text: b.heading;
+                            font-size: 15px;
+                            font-weight: 600;
+                            wrap: word-wrap;
+                            color: Theme.text;
+                        }
+                        if b.heading == "": StyledText {
+                            text: b.body;
+                            default-color: Theme.text;
+                            link-color: Theme.text;
+                        }
+                    }
+                }
+            }
+            if flick.content-height > flick.height: Rectangle {
+                x: parent.width - self.width;
+                width: 4px;
+                height: max(24px, flick.height * flick.height / flick.content-height);
+                y: -flick.content-y / (flick.content-height - flick.height) * (flick.height - self.height);
+                border-radius: 2px;
+                background: Theme.line;
             }
         }
     }
