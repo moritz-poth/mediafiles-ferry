@@ -96,40 +96,58 @@ fn refresh(app: &AppWindow, lang: &str) {
     app.set_minutes_since_scan(minutes_since_scan());
 }
 
-fn current_language(app: &AppWindow) -> &'static str {
-    LANGUAGES.get(app.get_language_index() as usize).map_or("en", |l| l.0)
+fn current_language(app: &AppWindow) -> String {
+    app.get_language().to_string()
+}
+
+/// Setzt die Menü-Modelle neu: neue Einträge bekommen frische Häkchen (ein Klick hakt sonst nur den geklickten Eintrag um).
+fn set_menus(app: &AppWindow, s: &Settings) {
+    let languages: Vec<MenuChoice> = LANGUAGES.iter().map(|l| MenuChoice { title: l.1.into(), checked: l.0 == s.language }).collect();
+    app.set_languages(ModelRc::new(VecModel::from(languages)));
+    app.set_appearance(ModelRc::new(VecModel::from(vec![s.dark, !s.dark])));
 }
 
 fn main() -> Result<(), slint::PlatformError> {
     let settings: Settings = fs::read(dir().join("settings.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
     let app = AppWindow::new()?;
     let _ = slint::select_bundled_translation(&settings.language);
-    app.set_language_index(LANGUAGES.iter().position(|l| l.0 == settings.language).unwrap_or(0) as i32);
+    app.set_language(settings.language.clone().into());
     app.set_dark(settings.dark);
     app.set_system_name(shorten(&scan::computer_name(), TITLE_CHARS).into());
-    let names: Vec<slint::SharedString> = LANGUAGES.iter().map(|l| l.1.into()).collect();
-    app.set_language_names(ModelRc::new(VecModel::from(names)));
+    set_menus(&app, &settings);
     refresh(&app, &settings.language);
     let settings = Rc::new(RefCell::new(settings));
 
+    // Änderungen aus dem Menü erst nach dem Klick ausführen: Sie benennen die Menüeinträge um,
+    // und das während der Menü-Verarbeitung von macOS führte zum Absturz.
     app.on_select_language({
         let (weak, settings) = (app.as_weak(), settings.clone());
         move |index| {
-            let app = weak.unwrap();
-            let code = LANGUAGES.get(index as usize).map_or("en", |l| l.0);
-            let _ = slint::select_bundled_translation(code);
-            app.set_language_index(index);
-            settings.borrow_mut().language = code.to_string();
-            save_settings(&settings.borrow());
-            refresh(&app, code);
+            let (weak, settings) = (weak.clone(), settings.clone());
+            slint::Timer::single_shot(Duration::ZERO, move || {
+                let Some(app) = weak.upgrade() else { return };
+                let code = LANGUAGES.get(index as usize).map_or("en", |l| l.0);
+                let _ = slint::select_bundled_translation(code);
+                app.set_language(code.into());
+                settings.borrow_mut().language = code.to_string();
+                save_settings(&settings.borrow());
+                set_menus(&app, &settings.borrow());
+                refresh(&app, code);
+            });
         }
     });
 
-    app.on_dark_changed({
-        let settings = settings.clone();
+    app.on_select_dark({
+        let (weak, settings) = (app.as_weak(), settings.clone());
         move |dark| {
-            settings.borrow_mut().dark = dark;
-            save_settings(&settings.borrow());
+            let (weak, settings) = (weak.clone(), settings.clone());
+            slint::Timer::single_shot(Duration::ZERO, move || {
+                let Some(app) = weak.upgrade() else { return };
+                app.set_dark(dark);
+                settings.borrow_mut().dark = dark;
+                save_settings(&settings.borrow());
+                set_menus(&app, &settings.borrow());
+            });
         }
     });
 
@@ -155,7 +173,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Ok(warnings) => app.set_warnings(warnings as i32),
                         Err(e) => app.set_error(shorten(&e.to_string(), LINE_CHARS).into()),
                     }
-                    refresh(&app, current_language(&app));
+                    refresh(&app, &current_language(&app));
                 });
             });
         }

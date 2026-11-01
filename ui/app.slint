@@ -1,5 +1,5 @@
 // Oberfläche von MediaFiles Ferry. Texte stehen auf Englisch in @tr(); Übersetzungen liegen in translations/.
-import { Button, Palette } from "std-widgets.slint";
+import { Palette } from "std-widgets.slint";
 import "fonts/JetBrainsMono-Regular.ttf";
 import "fonts/JetBrainsMono-SemiBold.ttf";
 import "fonts/JetBrainsMono-Bold.ttf";
@@ -10,12 +10,33 @@ export struct VolumeRow {
     online: bool,
 }
 
+export struct MenuChoice {
+    title: string,
+    checked: bool,
+}
+
 // Feste Breite für alle Sprachen; lange Namen kürzt der Rust-Teil in der Mitte ("Anfang…Ende").
 export global Metrics {
     out property <length> window-width: 420px;
     out property <length> padding: 32px;
     out property <length> spacing: 24px;
     out property <length> line: 18px;
+}
+
+// Eigene Farben statt Standard-Transparenzen: im hellen Modus braucht Sekundärtext deutlich mehr Kontrast.
+export global Theme {
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <color> background: dark ? #1f2225 : #f5f5f3;
+    out property <color> text: dark ? #eceded : #17191b;
+    out property <color> muted: dark ? #a9adb1 : #3f444a;
+    out property <color> faint: dark ? #7c8288 : #60666c;
+    out property <color> line: dark ? #3a3f44 : #c4c8cc;
+    out property <color> disabled: dark ? #6a7076 : #70767c;
+    out property <color> primary: dark ? #e6e7e8 : #2e3236;
+    out property <color> on-primary: dark ? #1f2225 : #f5f5f3;
+    out property <color> online: dark ? #3fb950 : #1f883d;
+    out property <color> warning: dark ? #d29922 : #8a5a00;
+    out property <color> error: dark ? #f85149 : #c62828;
 }
 
 component Section inherits VerticalLayout {
@@ -26,14 +47,14 @@ component Section inherits VerticalLayout {
         font-size: 11px;
         font-weight: 600;
         letter-spacing: 1px;
-        color: Palette.foreground.with-alpha(0.5);
+        color: Theme.muted;
     }
     @children
 }
 
 component Divider inherits Rectangle {
     height: 1px;
-    background: Palette.border;
+    background: Theme.line;
 }
 
 component StatusLine inherits Text {
@@ -43,10 +64,45 @@ component StatusLine inherits Text {
     vertical-alignment: center;
 }
 
+component FerryButton {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    callback clicked;
+    min-width: label.preferred-width + 28px;
+    preferred-width: self.min-width;
+    height: 32px;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+    Rectangle {
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: root.primary && root.enabled ? Theme.primary : Theme.line;
+        background: !root.enabled ? transparent
+            : root.primary ? (touch.pressed ? Theme.primary.darker(0.15) : Theme.primary)
+            : touch.pressed ? Theme.text.with-alpha(0.12) : touch.has-hover ? Theme.text.with-alpha(0.06) : transparent;
+    }
+    label := Text {
+        text: root.text;
+        font-weight: root.primary ? 600 : 400;
+        color: !root.enabled ? Theme.disabled : root.primary ? Theme.on-primary : Theme.text;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "MediaFiles Ferry";
     default-font-family: "JetBrains Mono";
     default-font-size: 13px;
+    background: Theme.background;
     width: Metrics.window-width;
     height: main.preferred-height;
 
@@ -58,39 +114,45 @@ export component AppWindow inherits Window {
     in property <int> warnings;
     in property <string> error;
     in property <bool> has-manifest;
-    in property <[string]> language-names;
-    in property <int> language-index;
-    in-out property <bool> dark: true;
+    in property <string> language: "en";
+    in property <[MenuChoice]> languages;
+    in property <[bool]> appearance;
+    in property <bool> dark: true;
 
     callback scan();
     callback save-manifest();
     callback open-manifest();
     callback import-delivery();
     callback select-language(int);
-    callback dark-changed(bool);
+    callback select-dark(bool);
 
+    init => {
+        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
+    }
+    changed dark => {
+        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
+    // Die Einträge kommen als Modell aus Rust und werden nach jeder Auswahl neu gesetzt, damit die Häkchen stimmen.
     MenuBar {
         Menu {
             title: @tr("Settings");
             Menu {
                 title: @tr("Language");
-                for name[i] in root.language-names: MenuItem {
-                    title: name;
-                    checked: i == root.language-index;
+                for l[i] in root.languages: MenuItem {
+                    title: l.title;
+                    checkable: true;
+                    checked: l.checked;
                     activated => { root.select-language(i); }
                 }
             }
             Menu {
                 title: @tr("Appearance");
-                MenuItem {
-                    title: @tr("Dark");
-                    checked: root.dark;
-                    activated => { root.dark = true; }
-                }
-                MenuItem {
-                    title: @tr("Light");
-                    checked: !root.dark;
-                    activated => { root.dark = false; }
+                for checked[i] in root.appearance: MenuItem {
+                    title: i == 0 ? @tr("Dark") : @tr("Light");
+                    checkable: true;
+                    checked: checked;
+                    activated => { root.select-dark(i == 0); }
                 }
             }
         }
@@ -103,14 +165,6 @@ export component AppWindow inherits Window {
         interval: 400ms;
         running: root.scanning;
         triggered => { root.dot-count = Math.mod(root.dot-count + 1, 4); }
-    }
-
-    init => {
-        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
-    }
-    changed dark => {
-        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
-        root.dark-changed(root.dark);
     }
 
     property <int> hours: root.minutes-since-scan / 60;
@@ -132,10 +186,10 @@ export component AppWindow inherits Window {
             Text {
                 text: "MEDIAFILES FERRY";
                 font-family: "Helvetica Neue";
-                font-size: 26px;
+                font-size: 31px;
                 font-weight: 300;
-                letter-spacing: 3px;
-                color: Palette.foreground;
+                letter-spacing: 2.5px;
+                color: Theme.text;
             }
         }
 
@@ -146,12 +200,12 @@ export component AppWindow inherits Window {
                 font-size: 15px;
                 font-weight: 600;
                 overflow: elide;
-                color: Palette.foreground;
+                color: Theme.text;
             }
             if root.volumes.length == 0: Text {
                 text: @tr("No drive with “Avid MediaFiles/MXF” found.");
                 overflow: elide;
-                color: Palette.foreground.with-alpha(0.6);
+                color: Theme.muted;
             }
             for v in root.volumes: HorizontalLayout {
                 spacing: 10px;
@@ -162,7 +216,7 @@ export component AppWindow inherits Window {
                         width: 8px;
                         height: 8px;
                         border-radius: 4px;
-                        background: v.online ? #3fb950 : Palette.border;
+                        background: v.online ? Theme.online : Theme.line;
                     }
                 }
                 Text {
@@ -170,35 +224,35 @@ export component AppWindow inherits Window {
                     horizontal-stretch: 1;
                     overflow: elide;
                     vertical-alignment: center;
-                    color: v.online ? Palette.foreground : Palette.foreground.with-alpha(0.5);
+                    color: v.online ? Theme.text : Theme.muted;
                 }
                 Text {
                     text: v.files == "" ? @tr("not scanned yet") : @tr("{} files", v.files);
                     vertical-alignment: center;
-                    color: Palette.foreground.with-alpha(v.files == "" ? 0.35 : 0.6);
+                    color: v.files == "" ? Theme.faint : Theme.muted;
                 }
             }
             VerticalLayout {
                 StatusLine {
                     text: root.scan-status;
-                    color: Palette.foreground.with-alpha(0.6);
+                    color: Theme.muted;
                 }
                 // feste Zeile, damit das Fenster nicht springt, wenn ein Hinweis erscheint
                 StatusLine {
                     text: root.error != "" ? root.error : root.warnings > 0 && !root.scanning ? @tr("{n} warning" | "{n} warnings" % root.warnings) : "";
-                    color: root.error != "" ? #f85149 : #d29922;
+                    color: root.error != "" ? Theme.error : Theme.warning;
                 }
             }
             HorizontalLayout {
                 spacing: 10px;
                 alignment: start;
-                Button {
+                FerryButton {
                     text: @tr("Scan");
                     primary: true;
                     enabled: !root.scanning && root.volumes.length > 0;
                     clicked => { root.scan(); }
                 }
-                Button {
+                FerryButton {
                     text: @tr("Save manifest…");
                     enabled: root.has-manifest && !root.scanning;
                     clicked => { root.save-manifest(); }
@@ -212,7 +266,7 @@ export component AppWindow inherits Window {
             title: @tr("COMPARE");
             HorizontalLayout {
                 alignment: start;
-                Button {
+                FerryButton {
                     text: @tr("Open manifest…");
                     enabled: false;
                     clicked => { root.open-manifest(); }
@@ -226,7 +280,7 @@ export component AppWindow inherits Window {
             title: @tr("RECEIVED A DELIVERY?");
             HorizontalLayout {
                 alignment: start;
-                Button {
+                FerryButton {
                     text: @tr("Verify & import…");
                     enabled: false;
                     clicked => { root.import-delivery(); }
