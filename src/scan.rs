@@ -38,6 +38,15 @@ pub fn default_cache_dir() -> Option<PathBuf> {
     std::env::var_os(var).map(|base| PathBuf::from(base).join(sub))
 }
 
+/// Der Name, den auch Avid für Ordner wie "Mac Studio von Alex.1" nimmt; der Hostname enthält oft das Netzwerk (".fritz.box").
+fn computer_name() -> String {
+    let mac = std::process::Command::new("scutil").args(["--get", "ComputerName"]).output().ok();
+    match mac.filter(|o| o.status.success()) {
+        Some(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        None => gethostname::gethostname().to_string_lossy().split('.').next().unwrap_or_default().to_string(),
+    }
+}
+
 /// shortcut: unter Windows ist das der Laufwerksbuchstabe; Volume-Label per GetVolumeInformation in Phase 4.
 fn volume_name(path: &Path) -> String {
     path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
@@ -60,7 +69,7 @@ pub fn scan(volumes: &[PathBuf], full: bool, cache_dir: Option<&Path>, progress:
     let mut manifest = Manifest {
         format: FORMAT.into(),
         version: 1,
-        system: gethostname::gethostname().to_string_lossy().trim_end_matches(".local").to_string(),
+        system: computer_name(),
         created: now_secs(),
         volumes: vec![],
     };
