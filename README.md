@@ -16,7 +16,7 @@ Ferry scannt die MXF-Ordner mit Prüfsummen, vergleicht die Bestände zweier Sys
 | Phase | Inhalt | Stand |
 |---|---|---|
 | 1 | Kern + Kommandozeile: Scan, Vergleich, Sammeln, Prüfen, Einspielen | fertig |
-| 2 | Grafische Oberfläche (Slint) | geplant |
+| 2 | Grafische Oberfläche (Slint), Englisch/Deutsch, Dark/Light | in Arbeit (Startbildschirm) |
 | 3 | Manifest-Austausch per Peer-to-Peer (iroh) | geplant |
 | 4 | Windows | geplant |
 
@@ -26,9 +26,17 @@ Voraussetzung: [Rust](https://rustup.rs)
 
 ```
 cargo build --release
-./target/release/ferry
+./target/release/ferry-app   # Oberfläche
+./target/release/ferry       # Kommandozeile
 cargo test
 ```
+
+## Übersetzen
+
+Die Oberfläche ist auf Englisch geschrieben (`@tr("…")` in `ui/app.slint`). Eine neue Sprache:
+
+1. `translations/<code>/LC_MESSAGES/mediafiles-ferry.po` anlegen (Vorlage: `translations/de/…`, oder mit `slint-tr-extractor ui/*.slint` erzeugen)
+2. die Sprache in `LANGUAGES` in `src/app.rs` eintragen
 
 ## Lizenz
 

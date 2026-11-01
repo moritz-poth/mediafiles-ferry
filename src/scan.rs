@@ -29,7 +29,8 @@ pub fn find_volumes() -> Vec<PathBuf> {
     found
 }
 
-pub fn default_cache_dir() -> Option<PathBuf> {
+/// Ablage für Prüfsummen-Cache, Einstellungen und letztes Manifest.
+pub fn app_dir() -> Option<PathBuf> {
     let (var, sub) = if cfg!(windows) {
         ("APPDATA", "MediaFiles Ferry")
     } else {
@@ -39,7 +40,7 @@ pub fn default_cache_dir() -> Option<PathBuf> {
 }
 
 /// Der Name, den auch Avid für Ordner wie "Mac Studio von Alex.1" nimmt; der Hostname enthält oft das Netzwerk (".fritz.box").
-fn computer_name() -> String {
+pub fn computer_name() -> String {
     let mac = std::process::Command::new("scutil").args(["--get", "ComputerName"]).output().ok();
     match mac.filter(|o| o.status.success()) {
         Some(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
@@ -48,7 +49,7 @@ fn computer_name() -> String {
 }
 
 /// shortcut: unter Windows ist das der Laufwerksbuchstabe; Volume-Label per GetVolumeInformation in Phase 4.
-fn volume_name(path: &Path) -> String {
+pub fn volume_name(path: &Path) -> String {
     path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
 }
 

@@ -56,7 +56,7 @@ fn run(args: Vec<String>) -> Result<ExitCode, Box<dyn std::error::Error>> {
             if vols.is_empty() {
                 return Err("keine Laufwerke mit \"Avid MediaFiles/MXF\" gefunden".into());
             }
-            let r = scan::scan(&vols, full, scan::default_cache_dir().as_deref(), progress)?;
+            let r = scan::scan(&vols, full, scan::app_dir().map(|d| d.join("cache")).as_deref(), progress)?;
             for w in &r.warnings {
                 eprintln!("Warnung: {w}");
             }

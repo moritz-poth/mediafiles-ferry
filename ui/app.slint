@@ -1,0 +1,217 @@
+// Oberfläche von MediaFiles Ferry. Texte stehen auf Englisch in @tr(); Übersetzungen liegen in translations/.
+import { Button, Palette } from "std-widgets.slint";
+
+export struct VolumeRow {
+    name: string,
+    files: string,
+    online: bool,
+}
+
+export struct Language {
+    code: string,
+    name: string,
+}
+
+component Section inherits VerticalLayout {
+    in property <string> title;
+    spacing: 8px;
+    Text {
+        text: root.title;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        color: Palette.foreground.with-alpha(0.5);
+    }
+    @children
+}
+
+component Divider inherits Rectangle {
+    height: 1px;
+    background: Palette.border;
+}
+
+component Link {
+    in property <string> text;
+    in property <bool> active;
+    callback clicked;
+    width: label.preferred-width;
+    height: label.preferred-height;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { root.clicked(); }
+    label := Text {
+        text: root.text;
+        font-size: 12px;
+        font-weight: root.active ? 700 : 400;
+        color: root.active || touch.has-hover ? Palette.foreground : Palette.foreground.with-alpha(0.5);
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "MediaFiles Ferry";
+    // Das Fenster ist immer genau so groß wie sein Inhalt.
+    width: main.preferred-width;
+    height: main.preferred-height;
+
+    in property <string> system-name;
+    in property <[VolumeRow]> volumes;
+    in property <int> minutes-since-scan: -1;
+    in property <bool> scanning;
+    in property <string> progress;
+    in property <int> warnings;
+    in property <string> error;
+    in property <bool> has-manifest;
+    in property <[Language]> languages;
+    in property <string> language: "en";
+    in-out property <bool> dark: true;
+
+    callback scan();
+    callback save-manifest();
+    callback open-manifest();
+    callback import-delivery();
+    callback select-language(string);
+    callback dark-changed(bool);
+
+    init => {
+        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
+    }
+    changed dark => {
+        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
+        root.dark-changed(root.dark);
+    }
+
+    property <int> hours: root.minutes-since-scan / 60;
+    property <int> days: root.hours / 24;
+    property <string> scan-status: root.scanning ? @tr("Scanning {}", root.progress)
+        : root.minutes-since-scan < 0 ? @tr("Not scanned yet")
+        : root.minutes-since-scan < 1 ? @tr("Last scan: just now")
+        : root.minutes-since-scan < 60 ? @tr("Last scan: {n} minute ago" | "Last scan: {n} minutes ago" % root.minutes-since-scan)
+        : root.hours < 24 ? @tr("Last scan: {n} hour ago" | "Last scan: {n} hours ago" % root.hours)
+        : @tr("Last scan: {n} day ago" | "Last scan: {n} days ago" % root.days);
+
+    main := VerticalLayout {
+        padding: 24px;
+        spacing: 18px;
+        min-width: 400px;
+
+        Text {
+            text: "MediaFiles Ferry";
+            font-size: 20px;
+            font-weight: 700;
+            color: Palette.foreground;
+        }
+
+        Section {
+            title: @tr("THIS SYSTEM");
+            Text {
+                text: root.system-name;
+                font-size: 15px;
+                font-weight: 600;
+                color: Palette.foreground;
+            }
+            if root.volumes.length == 0: Text {
+                text: @tr("No drive with “Avid MediaFiles/MXF” found.");
+                color: Palette.foreground.with-alpha(0.6);
+            }
+            for v in root.volumes: HorizontalLayout {
+                spacing: 8px;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 4px;
+                        background: v.online ? #3fb950 : Palette.border;
+                    }
+                }
+                Text {
+                    text: v.name;
+                    horizontal-stretch: 1;
+                    color: v.online ? Palette.foreground : Palette.foreground.with-alpha(0.5);
+                }
+                Text {
+                    text: v.files == "" ? "" : @tr("{} files", v.files);
+                    color: Palette.foreground.with-alpha(0.6);
+                }
+            }
+            Text {
+                text: root.scan-status;
+                font-size: 12px;
+                overflow: elide;
+                color: Palette.foreground.with-alpha(0.6);
+            }
+            if root.warnings > 0 && !root.scanning: Text {
+                text: @tr("{n} warning" | "{n} warnings" % root.warnings);
+                font-size: 12px;
+                color: #d29922;
+            }
+            if root.error != "": Text {
+                text: root.error;
+                font-size: 12px;
+                wrap: word-wrap;
+                color: #f85149;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                Button {
+                    text: @tr("Scan");
+                    primary: true;
+                    enabled: !root.scanning && root.volumes.length > 0;
+                    clicked => { root.scan(); }
+                }
+                Button {
+                    text: @tr("Save manifest…");
+                    enabled: root.has-manifest && !root.scanning;
+                    clicked => { root.save-manifest(); }
+                }
+            }
+        }
+
+        Divider { }
+
+        Section {
+            title: @tr("COMPARE");
+            HorizontalLayout {
+                alignment: start;
+                Button {
+                    text: @tr("Open manifest…");
+                    enabled: false;
+                    clicked => { root.open-manifest(); }
+                }
+            }
+        }
+
+        Divider { }
+
+        Section {
+            title: @tr("RECEIVED A DELIVERY?");
+            HorizontalLayout {
+                alignment: start;
+                Button {
+                    text: @tr("Verify & import…");
+                    enabled: false;
+                    clicked => { root.import-delivery(); }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+            for l in root.languages: Link {
+                text: l.name;
+                active: l.code == root.language;
+                clicked => { root.select-language(l.code); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Link {
+                text: root.dark ? @tr("Light mode") : @tr("Dark mode");
+                clicked => { root.dark = !root.dark; }
+            }
+        }
+    }
+}

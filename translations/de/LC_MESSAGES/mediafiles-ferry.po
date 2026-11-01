@@ -1,0 +1,71 @@
+# Deutsche Übersetzung von MediaFiles Ferry
+msgid ""
+msgstr ""
+"Project-Id-Version: MediaFiles Ferry\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Scanning {}"
+msgstr "Scanne {}"
+
+msgid "Not scanned yet"
+msgstr "Noch nicht gescannt"
+
+msgid "Last scan: just now"
+msgstr "Letzter Scan: gerade eben"
+
+msgid "Last scan: {n} minute ago"
+msgid_plural "Last scan: {n} minutes ago"
+msgstr[0] "Letzter Scan: vor {n} Minute"
+msgstr[1] "Letzter Scan: vor {n} Minuten"
+
+msgid "Last scan: {n} hour ago"
+msgid_plural "Last scan: {n} hours ago"
+msgstr[0] "Letzter Scan: vor {n} Stunde"
+msgstr[1] "Letzter Scan: vor {n} Stunden"
+
+msgid "Last scan: {n} day ago"
+msgid_plural "Last scan: {n} days ago"
+msgstr[0] "Letzter Scan: vor {n} Tag"
+msgstr[1] "Letzter Scan: vor {n} Tagen"
+
+msgid "THIS SYSTEM"
+msgstr "DIESES SYSTEM"
+
+msgid "No drive with “Avid MediaFiles/MXF” found."
+msgstr "Kein Laufwerk mit „Avid MediaFiles/MXF“ gefunden."
+
+msgid "{} files"
+msgstr "{} Dateien"
+
+msgid "{n} warning"
+msgid_plural "{n} warnings"
+msgstr[0] "{n} Warnung"
+msgstr[1] "{n} Warnungen"
+
+msgid "Scan"
+msgstr "Scannen"
+
+msgid "Save manifest…"
+msgstr "Manifest sichern …"
+
+msgid "COMPARE"
+msgstr "ABGLEICHEN"
+
+msgid "Open manifest…"
+msgstr "Manifest öffnen …"
+
+msgid "RECEIVED A DELIVERY?"
+msgstr "LIEFERUNG ERHALTEN?"
+
+msgid "Verify & import…"
+msgstr "Prüfen & einspielen …"
+
+msgid "Light mode"
+msgstr "Heller Modus"
+
+msgid "Dark mode"
+msgstr "Dunkler Modus"
