@@ -11,8 +11,8 @@ MediaFiles Ferry hält die Avid-Mediendateien (MXF) mehrerer Schnittplätze auf 
 ```
  System A                                  System B
  ────────                                  ────────
- 1. Scannen  → A.ferry.json  ──────────►   (Manifest von A)
-   (Manifest von B)   ◄──────────────────  B.ferry.json ← 1. Scannen
+ 1. Scannen  → A_Manifest.ferry  ──────────►   (Manifest von A)
+   (Manifest von B)   ◄──────────────────  B_Manifest.ferry ← 1. Scannen
  2. Sammeln  → Lieferordner  ──(Festplatte/Cloud)──►  3. Prüfen + Einspielen
 ```
 
@@ -48,7 +48,7 @@ Ferry findet alle angeschlossenen Laufwerke mit `Avid MediaFiles/MXF` und berech
 - **Weitere Scans sind schnell:** Ferry merkt sich die Prüfsummen und liest nur neue oder veränderte Dateien.
 - **Vollständig prüfen:** liest alle Dateien neu. Hat sich der Inhalt einer Datei verändert, obwohl Größe und Datum gleich sind, meldet Ferry das als *vermutlich beschädigt*. Empfehlung: gelegentlich, z. B. vor Projektende.
 
-Das Ergebnis ist eine Manifest-Datei, z. B. `MacStudio.ferry.json`. Diese Datei an das andere System schicken.
+Das Ergebnis ist eine Manifest-Datei mit Datum, Uhrzeit und Rechnername, z. B. `261101-1312_Mac Studio_Manifest.ferry`. Diese Datei an das andere System schicken. (Technisch ist es eine JSON-Datei.)
 
 ### 3.2 Vergleichen
 
@@ -156,14 +156,20 @@ Im Terminal im Projektordner:
 |---|---|
 | `ferry volumes` | gefundene Avid-Laufwerke anzeigen |
 | `ferry scan [--full] [-o DATEI] [LAUFWERK…]` | scannen, Manifest schreiben |
-| `ferry plan EIGENES.json ANDERES.json` | anzeigen, was fehlt |
-| `ferry collect EIGENES.json ANDERES.json LIEFERORDNER` | sammeln |
+| `ferry plan EIGENES.ferry ANDERES.ferry` | anzeigen, was fehlt |
+| `ferry collect EIGENES.ferry ANDERES.ferry LIEFERORDNER` | sammeln |
 | `ferry verify LIEFERORDNER` | Lieferung prüfen |
 | `ferry import LIEFERORDNER` | Lieferung einspielen |
 
 Optionen: `--map NAME=ZIEL` ordnet Laufwerke zu (bei `plan`/`collect`: eigenes Laufwerk = Laufwerk drüben; bei `import`: Laufwerk der Lieferung = Pfad, z. B. `--map MEDIA_Data=/Volumes/Projekt`). `--rename LAUFWERK/ORDNER` benennt einen Ordner drüben eindeutig statt zusammenzuführen.
 
-## 7. Häufige Fragen
+## 7. Einstellungen
+
+Im Menü **Settings** (Einstellungen):
+- **Language / Sprache:** English, Deutsch
+- **Appearance / Darstellung:** Dunkel (Standard) oder Hell
+
+## 8. Häufige Fragen
 
 **Werden Mediendateien über das Internet übertragen?**
 Nein. Ferry tauscht nur Manifeste aus. Die Medien reisen im Lieferordner auf dem Weg deiner Wahl.

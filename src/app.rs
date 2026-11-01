@@ -1,7 +1,7 @@
-//! Grafische Oberfläche. Phase 2, Schritt 1: Startbildschirm.
+//! Grafische Oberfläche. Phase 2, Schritt 1: Startbildschirm; Sprache und Darstellung im Menü Settings.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-use mediafiles_ferry::{Manifest, key, scan, write_atomic};
+use mediafiles_ferry::{MANIFEST_EXT, Manifest, key, manifest_file_name, scan, write_atomic};
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
@@ -17,9 +17,9 @@ slint::include_modules!();
 const LANGUAGES: [(&str, &str, char); 2] = [("en", "English", ','), ("de", "Deutsch", '.')];
 
 // Zeichenzahlen passend zur festen Fensterbreite (Metrics.window-width in ui/app.slint)
-const NAME_CHARS: usize = 28;
-const LINE_CHARS: usize = 50;
-const TITLE_CHARS: usize = 44;
+const NAME_CHARS: usize = 20;
+const LINE_CHARS: usize = 44;
+const TITLE_CHARS: usize = 38;
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
@@ -83,18 +83,14 @@ fn refresh(app: &AppWindow, lang: &str) {
         manifest.as_ref().and_then(|m| m.volumes.iter().find(|v| key(&v.name) == key(name))).map(|v| v.folders.iter().map(|f| f.files.len()).sum::<usize>())
     };
     let files = |n: Option<usize>| n.map(|n| group_digits(n, lang)).unwrap_or_default().into();
-    let mut rows: Vec<VolumeRow> = scan::find_volumes()
+    let online: Vec<String> = scan::find_volumes().iter().map(|p| scan::volume_name(p)).collect();
+    let offline = manifest.iter().flat_map(|m| &m.volumes).map(|v| &v.name).filter(|n| !online.iter().any(|o| key(o) == key(n)));
+    let rows: Vec<VolumeRow> = online
         .iter()
-        .map(|p| {
-            let name = scan::volume_name(p);
-            VolumeRow { files: files(scanned(&name)), name: shorten(&name, NAME_CHARS).into(), online: true }
-        })
+        .map(|n| (n, true))
+        .chain(offline.map(|n| (n, false)))
+        .map(|(n, online)| VolumeRow { name: shorten(n, NAME_CHARS).into(), files: files(scanned(n)), online })
         .collect();
-    for v in manifest.iter().flat_map(|m| &m.volumes) {
-        if !rows.iter().any(|r| key(&r.name) == key(&v.name)) {
-            rows.push(VolumeRow { name: shorten(&v.name, NAME_CHARS).into(), files: files(scanned(&v.name)), online: false });
-        }
-    }
     app.set_volumes(ModelRc::new(VecModel::from(rows)));
     app.set_has_manifest(manifest.is_some());
     app.set_minutes_since_scan(minutes_since_scan());
@@ -168,8 +164,9 @@ fn main() -> Result<(), slint::PlatformError> {
     app.on_save_manifest({
         let weak = app.as_weak();
         move || {
-            let name = format!("{}.ferry.json", scan::computer_name());
-            if let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Ferry manifest", &["json"]).save_file() {
+            let Ok(m) = Manifest::load(&manifest_path()) else { return };
+            let dialog = rfd::FileDialog::new().set_file_name(manifest_file_name(&m)).add_filter("MediaFiles Ferry Manifest", &[MANIFEST_EXT]);
+            if let Some(target) = dialog.save_file() {
                 if let Err(e) = fs::copy(manifest_path(), &target) {
                     weak.unwrap().set_error(shorten(&format!("{}: {e}", target.display()), LINE_CHARS).into());
                 }

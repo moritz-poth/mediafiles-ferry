@@ -87,19 +87,26 @@ pub fn now_secs() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
-/// Datum als JJMMTT (z. B. 261031) für eindeutige Ordnernamen.
-/// shortcut: rechnet in UTC, kurz nach Mitternacht kann es der Vortag sein; lokale Zeitzone falls das stört.
+pub const MANIFEST_EXT: &str = "ferry";
+
+/// Zeitpunkt in Ortszeit, z. B. Format "%y%m%d" -> "261031".
+pub fn local_time(secs: u64, fmt: &str) -> String {
+    chrono::DateTime::from_timestamp(secs as i64, 0).map(|t| t.with_timezone(&chrono::Local).format(fmt).to_string()).unwrap_or_default()
+}
+
+/// Datum als JJMMTT für eindeutige Ordnernamen.
 pub fn yymmdd(secs: u64) -> String {
-    // Tage seit 1970 -> Kalenderdatum (Algorithmus von H. Hinnant)
-    let z = (secs / 86400) as i64 + 719468;
-    let (era, doe) = (z.div_euclid(146097), z.rem_euclid(146097));
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = yoe + era * 400 + i64::from(m <= 2);
-    format!("{:02}{:02}{:02}", y % 100, m, d)
+    local_time(secs, "%y%m%d")
+}
+
+/// Ersetzt Zeichen, die in Datei- und Ordnernamen auf Mac oder Windows nicht erlaubt sind.
+pub fn safe_name(s: &str) -> String {
+    s.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
+}
+
+/// Dateiname eines Manifests, z. B. "261101-1312_Mac Studio_Manifest.ferry" (Inhalt ist JSON).
+pub fn manifest_file_name(m: &Manifest) -> String {
+    format!("{}_{}_Manifest.{MANIFEST_EXT}", local_time(m.created, "%y%m%d-%H%M"), safe_name(&m.system))
 }
 
 #[cfg(test)]
@@ -109,7 +116,7 @@ mod tests {
     #[test]
     fn date_and_key() {
         assert_eq!(yymmdd(1793448000), "261031");
-        assert_eq!(yymmdd(951782400), "000229");
+        assert_eq!(yymmdd(951825600), "000229");
         assert_eq!(key("A\u{0308}vid8.1"), key("ävid8.1"));
     }
 }

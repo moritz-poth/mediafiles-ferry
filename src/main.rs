@@ -1,6 +1,6 @@
 //! Kommandozeile zum Testen des Kerns; die Oberfläche folgt in Phase 2.
 use mediafiles_ferry::plan::{self, Options, Plan};
-use mediafiles_ferry::{Manifest, collect, now_secs, scan, yymmdd};
+use mediafiles_ferry::{Manifest, collect, manifest_file_name, now_secs, scan, yymmdd};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -9,8 +9,8 @@ MediaFiles Ferry – Testversion (Kommandozeile)
 
   ferry volumes                                  gefundene Avid-Laufwerke anzeigen
   ferry scan [--full] [-o DATEI] [LAUFWERK...]   scannen und Manifest schreiben (ohne Angabe: alle Laufwerke)
-  ferry plan LOKAL.json GEGENSEITE.json [Optionen]              zeigen, was fehlt
-  ferry collect LOKAL.json GEGENSEITE.json ZIELORDNER [Optionen] fehlende Dateien sammeln
+  ferry plan EIGENES.ferry ANDERES.ferry [Optionen]              zeigen, was fehlt
+  ferry collect EIGENES.ferry ANDERES.ferry ZIELORDNER [Optionen] fehlende Dateien sammeln
   ferry verify LIEFERORDNER                      Lieferung prüfen
   ferry import LIEFERORDNER [--map VOLUME=PFAD]  Lieferung in die MXF-Ordner einspielen
 
@@ -61,7 +61,7 @@ fn run(args: Vec<String>) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 eprintln!("Warnung: {w}");
             }
             let m = &r.manifest;
-            let out = out.unwrap_or_else(|| format!("{}.ferry.json", m.system));
+            let out = out.unwrap_or_else(|| manifest_file_name(m));
             m.save(Path::new(&out))?;
             let files: usize = m.volumes.iter().flat_map(|v| &v.folders).map(|f| f.files.len()).sum();
             println!("{} Volumes, {files} Dateien -> {out}", m.volumes.len());

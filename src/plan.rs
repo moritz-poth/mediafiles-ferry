@@ -118,7 +118,7 @@ pub fn plan(local: &Manifest, remote: &Manifest, opts: &Options, date: &str) -> 
             let id = format!("{}/{}", lv.name, f.name);
             let same = rv.and_then(|rv| rv.folders.iter().find(|rf| key(&rf.name) == key(&f.name)));
             let (to_folder, existing) = if renames.contains(&key(&id)) {
-                (unique_name(&format!("{date}_{}_{}", safe(&local.system), f.name.replace('.', "_")), taken), None)
+                (unique_name(&format!("{date}_{}_{}", safe_name(&local.system).replace('.', "_"), f.name.replace('.', "_")), taken), None)
             } else {
                 (same.map_or_else(|| f.name.clone(), |s| s.name.clone()), same)
             };
@@ -198,10 +198,6 @@ fn push_once(tasks: &mut Vec<Task>, t: Task) {
     if !tasks.contains(&t) {
         tasks.push(t);
     }
-}
-
-fn safe(s: &str) -> String {
-    s.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|', '.'], "_")
 }
 
 fn unique_name(base: &str, taken: &mut HashSet<String>) -> String {

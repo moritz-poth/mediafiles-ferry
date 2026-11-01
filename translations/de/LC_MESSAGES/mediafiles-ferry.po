@@ -8,8 +8,8 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid "Scanning {}"
-msgstr "Scanne {}"
+msgid "Scanning{} {}"
+msgstr "Scanne{} {}"
 
 msgid "Not scanned yet"
 msgstr "Noch nicht gescannt"
@@ -64,8 +64,20 @@ msgstr "LIEFERUNG ERHALTEN?"
 msgid "Verify & import…"
 msgstr "Prüfen & einspielen …"
 
-msgid "Switch to light mode"
-msgstr "Zum hellen Modus wechseln"
+msgid "not scanned yet"
+msgstr "noch nicht gescannt"
 
-msgid "Switch to dark mode"
-msgstr "Zum dunklen Modus wechseln"
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "Language"
+msgstr "Sprache"
+
+msgid "Appearance"
+msgstr "Darstellung"
+
+msgid "Dark"
+msgstr "Dunkel"
+
+msgid "Light"
+msgstr "Hell"
