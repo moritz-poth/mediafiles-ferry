@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26303d"/>
+      <stop offset="1" stop-color="#11161d"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <!-- zwei Medienblöcke (Systeme A und B) -->
+  <rect x="318" y="318" width="170" height="150" rx="18" fill="#e6edf3"/>
+  <rect x="536" y="318" width="170" height="150" rx="18" fill="#3fb950"/>
+  <rect x="343" y="350" width="120" height="14" rx="7" fill="#26303d" opacity=".55"/>
+  <rect x="343" y="380" width="80" height="14" rx="7" fill="#26303d" opacity=".55"/>
+  <rect x="561" y="350" width="120" height="14" rx="7" fill="#11161d" opacity=".45"/>
+  <rect x="561" y="380" width="80" height="14" rx="7" fill="#11161d" opacity=".45"/>
+  <!-- Rumpf -->
+  <path d="M250 500 H774 L712 630 H312 Z" fill="#e6edf3"/>
+  <!-- Wellen -->
+  <path d="M230 700 q47 -34 94 0 t94 0 t94 0 t94 0 t94 0 t94 0" fill="none" stroke="#3fb950" stroke-width="30" stroke-linecap="round"/>
+  <path d="M290 780 q47 -34 94 0 t94 0 t94 0 t94 0 t94 0" fill="none" stroke="#3fb950" stroke-width="30" stroke-linecap="round" opacity=".5"/>
+</svg>

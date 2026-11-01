@@ -53,6 +53,11 @@ pub fn volume_name(path: &Path) -> String {
     path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
 }
 
+fn save_cache(path: &Path, cache: &Cache) -> io::Result<()> {
+    fs::create_dir_all(path.parent().unwrap())?;
+    write_atomic(path, &serde_json::to_vec(cache)?)
+}
+
 fn entries(dir: &Path) -> io::Result<Vec<PathBuf>> {
     let with_path = |e: io::Error| io::Error::new(e.kind(), format!("{}: {e}", dir.display()));
     let mut v = fs::read_dir(dir).map_err(with_path)?.map(|e| e.map(|e| e.path())).collect::<io::Result<Vec<_>>>().map_err(with_path)?;
@@ -79,12 +84,13 @@ pub fn scan(volumes: &[PathBuf], full: bool, cache_dir: Option<&Path>, progress:
     for vol in volumes {
         let name = volume_name(vol);
         let cache_path = cache_dir.map(|d| d.join(format!("{name}.json")));
-        let old: Cache = cache_path
+        let mut cache: Cache = cache_path
             .as_ref()
             .and_then(|p| fs::read(p).ok())
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
-        let mut new = Cache::new();
+        let mut seen = std::collections::HashSet::new();
+        let mut last_save = std::time::Instant::now();
         let mut folders = vec![];
 
         for dir in entries(&mxf_dir(vol))? {
@@ -124,7 +130,7 @@ pub fn scan(volumes: &[PathBuf], full: bool, cache_dir: Option<&Path>, progress:
                 };
                 let size = meta.len();
                 let mtime = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos());
-                let cached = old.get(&rel).filter(|c| c.size == size && c.mtime == mtime);
+                let cached = cache.get(&rel).filter(|c| c.size == size && c.mtime == mtime);
                 let hash = match cached {
                     Some(c) if !full => c.hash.clone(),
                     _ => match hash_file(&path) {
@@ -140,16 +146,24 @@ pub fn scan(volumes: &[PathBuf], full: bool, cache_dir: Option<&Path>, progress:
                         }
                     },
                 };
-                new.insert(rel, Cached { size, mtime, hash: hash.clone() });
+                cache.insert(rel.clone(), Cached { size, mtime, hash: hash.clone() });
+                seen.insert(rel);
                 folder.files.push(FileEntry { name: n, size, hash });
             }
             folder.has_db = db[0] && db[1];
             folders.push(folder);
+            // Zwischenstand sichern: nach einem Absturz muss nur der Rest neu gehasht werden.
+            if let Some(p) = &cache_path {
+                if last_save.elapsed().as_secs() >= 30 {
+                    save_cache(p, &cache)?;
+                    last_save = std::time::Instant::now();
+                }
+            }
         }
 
-        if let Some(p) = cache_path {
-            fs::create_dir_all(p.parent().unwrap())?;
-            fs::write(p, serde_json::to_vec(&new)?)?;
+        if let Some(p) = &cache_path {
+            cache.retain(|k, _| seen.contains(k));
+            save_cache(p, &cache)?;
         }
         manifest.volumes.push(Volume { name, path: vol.display().to_string(), folders });
     }

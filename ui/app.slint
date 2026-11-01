@@ -1,5 +1,8 @@
 // Oberfläche von MediaFiles Ferry. Texte stehen auf Englisch in @tr(); Übersetzungen liegen in translations/.
-import { Button, Palette } from "std-widgets.slint";
+import { Button, ComboBox, Palette } from "std-widgets.slint";
+import "fonts/JetBrainsMono-Regular.ttf";
+import "fonts/JetBrainsMono-SemiBold.ttf";
+import "fonts/JetBrainsMono-Bold.ttf";
 
 export struct VolumeRow {
     name: string,
@@ -7,19 +10,22 @@ export struct VolumeRow {
     online: bool,
 }
 
-export struct Language {
-    code: string,
-    name: string,
+// Feste Breite für alle Sprachen; lange Namen kürzt der Rust-Teil in der Mitte ("Anfang…Ende").
+export global Metrics {
+    out property <length> window-width: 500px;
+    out property <length> padding: 32px;
+    out property <length> spacing: 24px;
+    out property <length> line: 18px;
 }
 
 component Section inherits VerticalLayout {
     in property <string> title;
-    spacing: 8px;
+    spacing: 10px;
     Text {
         text: root.title;
         font-size: 11px;
         font-weight: 600;
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
         color: Palette.foreground.with-alpha(0.5);
     }
     @children
@@ -30,20 +36,31 @@ component Divider inherits Rectangle {
     background: Palette.border;
 }
 
-component Link {
-    in property <string> text;
-    in property <bool> active;
+component StatusLine inherits Text {
+    height: Metrics.line;
+    font-size: 12px;
+    overflow: elide;
+    vertical-alignment: center;
+}
+
+component IconButton {
+    in property <image> icon;
+    in property <string> label;
     callback clicked;
-    width: label.preferred-width;
-    height: label.preferred-height;
+    width: 28px;
+    height: 28px;
     accessible-role: button;
-    accessible-label: root.text;
+    accessible-label: root.label;
     accessible-action-default => { root.clicked(); }
-    label := Text {
-        text: root.text;
-        font-size: 12px;
-        font-weight: root.active ? 700 : 400;
-        color: root.active || touch.has-hover ? Palette.foreground : Palette.foreground.with-alpha(0.5);
+    Rectangle {
+        border-radius: 6px;
+        background: touch.has-hover ? Palette.foreground.with-alpha(0.08) : transparent;
+    }
+    Image {
+        source: root.icon;
+        width: 18px;
+        height: 18px;
+        colorize: touch.has-hover ? Palette.foreground : Palette.foreground.with-alpha(0.6);
     }
     touch := TouchArea {
         mouse-cursor: pointer;
@@ -53,8 +70,9 @@ component Link {
 
 export component AppWindow inherits Window {
     title: "MediaFiles Ferry";
-    // Das Fenster ist immer genau so groß wie sein Inhalt.
-    width: main.preferred-width;
+    default-font-family: "JetBrains Mono";
+    default-font-size: 13px;
+    width: Metrics.window-width;
     height: main.preferred-height;
 
     in property <string> system-name;
@@ -65,15 +83,15 @@ export component AppWindow inherits Window {
     in property <int> warnings;
     in property <string> error;
     in property <bool> has-manifest;
-    in property <[Language]> languages;
-    in property <string> language: "en";
+    in property <[string]> language-names;
+    in property <int> language-index;
     in-out property <bool> dark: true;
 
     callback scan();
     callback save-manifest();
     callback open-manifest();
     callback import-delivery();
-    callback select-language(string);
+    callback select-language(int);
     callback dark-changed(bool);
 
     init => {
@@ -94,13 +112,12 @@ export component AppWindow inherits Window {
         : @tr("Last scan: {n} day ago" | "Last scan: {n} days ago" % root.days);
 
     main := VerticalLayout {
-        padding: 24px;
-        spacing: 18px;
-        min-width: 400px;
+        padding: Metrics.padding;
+        spacing: Metrics.spacing;
 
         Text {
             text: "MediaFiles Ferry";
-            font-size: 20px;
+            font-size: 26px;
             font-weight: 700;
             color: Palette.foreground;
         }
@@ -111,14 +128,17 @@ export component AppWindow inherits Window {
                 text: root.system-name;
                 font-size: 15px;
                 font-weight: 600;
+                overflow: elide;
                 color: Palette.foreground;
             }
             if root.volumes.length == 0: Text {
                 text: @tr("No drive with “Avid MediaFiles/MXF” found.");
+                overflow: elide;
                 color: Palette.foreground.with-alpha(0.6);
             }
             for v in root.volumes: HorizontalLayout {
-                spacing: 8px;
+                spacing: 10px;
+                height: Metrics.line;
                 VerticalLayout {
                     alignment: center;
                     Rectangle {
@@ -131,32 +151,29 @@ export component AppWindow inherits Window {
                 Text {
                     text: v.name;
                     horizontal-stretch: 1;
+                    overflow: elide;
+                    vertical-alignment: center;
                     color: v.online ? Palette.foreground : Palette.foreground.with-alpha(0.5);
                 }
                 Text {
                     text: v.files == "" ? "" : @tr("{} files", v.files);
+                    vertical-alignment: center;
                     color: Palette.foreground.with-alpha(0.6);
                 }
             }
-            Text {
-                text: root.scan-status;
-                font-size: 12px;
-                overflow: elide;
-                color: Palette.foreground.with-alpha(0.6);
-            }
-            if root.warnings > 0 && !root.scanning: Text {
-                text: @tr("{n} warning" | "{n} warnings" % root.warnings);
-                font-size: 12px;
-                color: #d29922;
-            }
-            if root.error != "": Text {
-                text: root.error;
-                font-size: 12px;
-                wrap: word-wrap;
-                color: #f85149;
+            VerticalLayout {
+                StatusLine {
+                    text: root.scan-status;
+                    color: Palette.foreground.with-alpha(0.6);
+                }
+                // feste Zeile, damit das Fenster nicht springt, wenn ein Hinweis erscheint
+                StatusLine {
+                    text: root.error != "" ? root.error : root.warnings > 0 && !root.scanning ? @tr("{n} warning" | "{n} warnings" % root.warnings) : "";
+                    color: root.error != "" ? #f85149 : #d29922;
+                }
             }
             HorizontalLayout {
-                spacing: 8px;
+                spacing: 10px;
                 alignment: start;
                 Button {
                     text: @tr("Scan");
@@ -201,16 +218,20 @@ export component AppWindow inherits Window {
         }
 
         HorizontalLayout {
-            spacing: 12px;
-            for l in root.languages: Link {
-                text: l.name;
-                active: l.code == root.language;
-                clicked => { root.select-language(l.code); }
+            alignment: space-between;
+            ComboBox {
+                width: 150px;
+                model: root.language-names;
+                current-index: root.language-index;
+                selected => { root.select-language(self.current-index); }
             }
-            Rectangle { horizontal-stretch: 1; }
-            Link {
-                text: root.dark ? @tr("Light mode") : @tr("Dark mode");
-                clicked => { root.dark = !root.dark; }
+            VerticalLayout {
+                alignment: center;
+                IconButton {
+                    icon: root.dark ? @image-url("icons/sun.svg") : @image-url("icons/moon.svg");
+                    label: root.dark ? @tr("Switch to light mode") : @tr("Switch to dark mode");
+                    clicked => { root.dark = !root.dark; }
+                }
             }
         }
     }

@@ -55,7 +55,7 @@ impl Manifest {
     }
 
     pub fn save(&self, path: &Path) -> io::Result<()> {
-        Ok(fs::write(path, serde_json::to_vec(self)?)?)
+        write_atomic(path, &serde_json::to_vec(self)?)
     }
 }
 
@@ -66,6 +66,15 @@ pub fn key(s: &str) -> String {
 
 pub fn mxf_dir(volume: &Path) -> PathBuf {
     volume.join("Avid MediaFiles").join("MXF")
+}
+
+/// Schreibt erst in eine Nachbardatei und benennt dann um: ein Absturz hinterlässt nie eine halbe Datei.
+pub fn write_atomic(path: &Path, data: &[u8]) -> io::Result<()> {
+    let tmp = path.with_file_name(format!("{}.tmp", path.file_name().unwrap_or_default().to_string_lossy()));
+    let mut f = File::create(&tmp)?;
+    io::Write::write_all(&mut f, data)?;
+    f.sync_all()?;
+    fs::rename(&tmp, path)
 }
 
 pub fn hash_file(path: &Path) -> io::Result<String> {

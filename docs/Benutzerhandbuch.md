@@ -168,8 +168,11 @@ Optionen: `--map NAME=ZIEL` ordnet Laufwerke zu (bei `plan`/`collect`: eigenes L
 **Werden Mediendateien über das Internet übertragen?**
 Nein. Ferry tauscht nur Manifeste aus. Die Medien reisen im Lieferordner auf dem Weg deiner Wahl.
 
-**Kann ich Ferry abbrechen?**
-Ja. Halb kopierte Dateien heißen `….ferry-part` und werden nie als fertig betrachtet. Beim nächsten Start setzt Ferry fort.
+**Kann ich Ferry abbrechen? Was passiert bei einem Absturz?**
+Nichts geht verloren, und es muss nicht alles neu laufen:
+- **Scannen:** Ferry sichert die berechneten Prüfsummen alle 30 Sekunden. Nach einem Absturz werden beim nächsten Scan nur die noch fehlenden Dateien gelesen.
+- **Sammeln und Einspielen:** Halb kopierte Dateien heißen `….ferry-part` und gelten nie als fertig. Einfach neu starten: Fertige Dateien werden geprüft und übersprungen.
+- Alle Verwaltungsdateien (Manifest, Prüfsummen, Lieferliste, Einstellungen) werden so geschrieben, dass ein Absturz nie eine halbe Datei hinterlässt.
 
 **Warum löscht Ferry nichts?**
 Ob eine Datei auf A gelöscht oder auf B neu ist, lässt sich ohne Verlauf nicht unterscheiden. Löschen bleibt deshalb Handarbeit.

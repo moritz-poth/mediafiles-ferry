@@ -27,6 +27,7 @@ Voraussetzung: [Rust](https://rustup.rs)
 ```
 cargo build --release
 ./target/release/ferry-app   # Oberfläche
+scripts/build-mac-app.sh     # macOS: baut dist/MediaFiles Ferry.app
 ./target/release/ferry       # Kommandozeile
 cargo test
 ```
@@ -39,6 +40,8 @@ Die Oberfläche ist auf Englisch geschrieben (`@tr("…")` in `ui/app.slint`). E
 2. die Sprache in `LANGUAGES` in `src/app.rs` eintragen
 
 ## Lizenz
+
+Schrift: [JetBrains Mono](https://www.jetbrains.com/lp/mono/) unter der SIL Open Font License (`ui/fonts/OFL.txt`).
 
 GPL-3.0 oder neuer – siehe [LICENSE](LICENSE). Veränderte Versionen, die weitergegeben werden, müssen ebenfalls unter der GPL offengelegt werden.
 

@@ -102,7 +102,7 @@ pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, prog
         db_folders,
         tasks,
     };
-    fs::write(dest.join(DELIVERY_FILE), serde_json::to_vec_pretty(&delivery)?)?;
+    write_atomic(&dest.join(DELIVERY_FILE), &serde_json::to_vec_pretty(&delivery)?)?;
     Ok(errors)
 }
 

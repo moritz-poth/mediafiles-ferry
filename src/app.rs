@@ -1,7 +1,7 @@
 //! Grafische Oberfläche. Phase 2, Schritt 1: Startbildschirm.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-use mediafiles_ferry::{Manifest, key, scan};
+use mediafiles_ferry::{Manifest, key, scan, write_atomic};
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
@@ -12,8 +12,14 @@ use std::time::Duration;
 
 slint::include_modules!();
 
+/// (Code, Name in der eigenen Sprache, Tausendertrennzeichen)
 /// Neue Sprache: hier eintragen und translations/<code>/LC_MESSAGES/mediafiles-ferry.po anlegen.
 const LANGUAGES: [(&str, &str, char); 2] = [("en", "English", ','), ("de", "Deutsch", '.')];
+
+// Zeichenzahlen passend zur festen Fensterbreite (Metrics.window-width in ui/app.slint)
+const NAME_CHARS: usize = 28;
+const LINE_CHARS: usize = 50;
+const TITLE_CHARS: usize = 44;
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
@@ -39,11 +45,22 @@ fn manifest_path() -> PathBuf {
 fn save_settings(s: &Settings) {
     // Einstellungen sind Komfort; scheitert das Speichern, gilt beim nächsten Start der Standard.
     let _ = fs::create_dir_all(dir());
-    let _ = fs::write(dir().join("settings.json"), serde_json::to_vec_pretty(s).unwrap_or_default());
+    let _ = write_atomic(&dir().join("settings.json"), &serde_json::to_vec_pretty(s).unwrap_or_default());
 }
 
 fn minutes_since_scan() -> i32 {
     fs::metadata(manifest_path()).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).map_or(-1, |d| (d.as_secs() / 60) as i32)
+}
+
+/// Kürzt lange Namen in der Mitte, damit Anfang und Ende sichtbar bleiben. Die Schrift ist gleich breit, Zeichen = Breite.
+fn shorten(s: &str, max: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= max {
+        return s.to_string();
+    }
+    let head = (max - 1) / 2;
+    let tail = max - 1 - head;
+    chars[..head].iter().chain(['…'].iter()).chain(chars[chars.len() - tail..].iter()).collect()
 }
 
 fn group_digits(n: usize, lang: &str) -> String {
@@ -70,12 +87,12 @@ fn refresh(app: &AppWindow, lang: &str) {
         .iter()
         .map(|p| {
             let name = scan::volume_name(p);
-            VolumeRow { files: files(scanned(&name)), name: name.into(), online: true }
+            VolumeRow { files: files(scanned(&name)), name: shorten(&name, NAME_CHARS).into(), online: true }
         })
         .collect();
     for v in manifest.iter().flat_map(|m| &m.volumes) {
         if !rows.iter().any(|r| key(&r.name) == key(&v.name)) {
-            rows.push(VolumeRow { name: v.name.clone().into(), files: files(scanned(&v.name)), online: false });
+            rows.push(VolumeRow { name: shorten(&v.name, NAME_CHARS).into(), files: files(scanned(&v.name)), online: false });
         }
     }
     app.set_volumes(ModelRc::new(VecModel::from(rows)));
@@ -83,27 +100,32 @@ fn refresh(app: &AppWindow, lang: &str) {
     app.set_minutes_since_scan(minutes_since_scan());
 }
 
+fn current_language(app: &AppWindow) -> &'static str {
+    LANGUAGES.get(app.get_language_index() as usize).map_or("en", |l| l.0)
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let settings: Settings = fs::read(dir().join("settings.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
     let app = AppWindow::new()?;
     let _ = slint::select_bundled_translation(&settings.language);
-    app.set_language(settings.language.clone().into());
+    app.set_language_index(LANGUAGES.iter().position(|l| l.0 == settings.language).unwrap_or(0) as i32);
     app.set_dark(settings.dark);
-    app.set_system_name(scan::computer_name().into());
-    let languages: Vec<Language> = LANGUAGES.iter().map(|l| Language { code: l.0.into(), name: l.1.into() }).collect();
-    app.set_languages(ModelRc::new(VecModel::from(languages)));
+    app.set_system_name(shorten(&scan::computer_name(), TITLE_CHARS).into());
+    let names: Vec<slint::SharedString> = LANGUAGES.iter().map(|l| l.1.into()).collect();
+    app.set_language_names(ModelRc::new(VecModel::from(names)));
     refresh(&app, &settings.language);
     let settings = Rc::new(RefCell::new(settings));
 
     app.on_select_language({
         let (weak, settings) = (app.as_weak(), settings.clone());
-        move |code| {
+        move |index| {
             let app = weak.unwrap();
-            let _ = slint::select_bundled_translation(&code);
-            app.set_language(code.clone());
+            let code = LANGUAGES.get(index as usize).map_or("en", |l| l.0);
+            let _ = slint::select_bundled_translation(code);
+            app.set_language_index(index);
             settings.borrow_mut().language = code.to_string();
             save_settings(&settings.borrow());
-            refresh(&app, &code);
+            refresh(&app, code);
         }
     });
 
@@ -127,7 +149,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let progress_to = weak.clone();
                 let result = scan::scan(&vols, false, Some(&dir().join("cache")), &mut |p| {
                     let (p, w) = (p.to_string(), progress_to.clone());
-                    let _ = slint::invoke_from_event_loop(move || w.upgrade().into_iter().for_each(|a| a.set_progress(p.clone().into())));
+                    let _ = slint::invoke_from_event_loop(move || w.upgrade().into_iter().for_each(|a| a.set_progress(shorten(&p, LINE_CHARS - 12).into())));
                 })
                 .and_then(|r| r.manifest.save(&manifest_path()).map(|_| r.warnings.len()));
                 let _ = slint::invoke_from_event_loop(move || {
@@ -135,9 +157,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     app.set_scanning(false);
                     match result {
                         Ok(warnings) => app.set_warnings(warnings as i32),
-                        Err(e) => app.set_error(e.to_string().into()),
+                        Err(e) => app.set_error(shorten(&e.to_string(), LINE_CHARS).into()),
                     }
-                    refresh(&app, &app.get_language());
+                    refresh(&app, current_language(&app));
                 });
             });
         }
@@ -149,7 +171,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let name = format!("{}.ferry.json", scan::computer_name());
             if let Some(target) = rfd::FileDialog::new().set_file_name(name).add_filter("Ferry manifest", &["json"]).save_file() {
                 if let Err(e) = fs::copy(manifest_path(), &target) {
-                    weak.unwrap().set_error(format!("{}: {e}", target.display()).into());
+                    weak.unwrap().set_error(shorten(&format!("{}: {e}", target.display()), LINE_CHARS).into());
                 }
             }
         }
@@ -171,5 +193,12 @@ mod tests {
         assert_eq!(super::group_digits(118842, "de"), "118.842");
         assert_eq!(super::group_digits(1234567, "en"), "1,234,567");
         assert_eq!(super::group_digits(999, "de"), "999");
+    }
+
+    #[test]
+    fn long_names_are_shortened_in_the_middle() {
+        assert_eq!(super::shorten("Avid8.1", 10), "Avid8.1");
+        assert_eq!(super::shorten("Mac Studio von Mathias.100", 11), "Mac S…s.100");
+        assert_eq!(super::shorten("Alex’s Mac Studio.1", 19).chars().count(), 19);
     }
 }

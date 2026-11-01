@@ -64,8 +64,8 @@ msgstr "LIEFERUNG ERHALTEN?"
 msgid "Verify & import…"
 msgstr "Prüfen & einspielen …"
 
-msgid "Light mode"
-msgstr "Heller Modus"
+msgid "Switch to light mode"
+msgstr "Zum hellen Modus wechseln"
 
-msgid "Dark mode"
-msgstr "Dunkler Modus"
+msgid "Switch to dark mode"
+msgstr "Zum dunklen Modus wechseln"
