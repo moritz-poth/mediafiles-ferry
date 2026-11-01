@@ -85,5 +85,8 @@ msgstr "Hell"
 msgid "Help"
 msgstr "Hilfe"
 
-msgid "MediaFiles Ferry Help"
-msgstr "MediaFiles Ferry Hilfe"
+msgid "Manual"
+msgstr "Anleitung"
+
+msgid "MediaFiles Ferry Manual"
+msgstr "MediaFiles Ferry Anleitung"

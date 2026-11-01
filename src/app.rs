@@ -136,7 +136,10 @@ fn update_help(help: &HelpWindow, s: &Settings) {
     let (subtitle, blocks) = help_blocks(markdown);
     help.set_subtitle(subtitle.into());
     help.set_blocks(ModelRc::new(VecModel::from(blocks)));
-    help.set_dark(s.dark);
+    help.global::<Ferry>().set_dark(s.dark);
+    let (languages, appearance) = menu_models(s);
+    help.global::<Ferry>().set_languages(languages);
+    help.global::<Ferry>().set_appearance(appearance);
 }
 
 fn current_language(app: &AppWindow) -> String {
@@ -144,10 +147,15 @@ fn current_language(app: &AppWindow) -> String {
 }
 
 /// Setzt die Menü-Modelle neu: neue Einträge bekommen frische Häkchen (ein Klick hakt sonst nur den geklickten Eintrag um).
-fn set_menus(app: &AppWindow, s: &Settings) {
+fn menu_models(s: &Settings) -> (ModelRc<MenuChoice>, ModelRc<bool>) {
     let languages: Vec<MenuChoice> = LANGUAGES.iter().map(|l| MenuChoice { title: l.1.into(), checked: l.0 == s.language }).collect();
-    app.set_languages(ModelRc::new(VecModel::from(languages)));
-    app.set_appearance(ModelRc::new(VecModel::from(vec![s.dark, !s.dark])));
+    (ModelRc::new(VecModel::from(languages)), ModelRc::new(VecModel::from(vec![s.dark, !s.dark])))
+}
+
+fn set_menus(app: &AppWindow, s: &Settings) {
+    let (languages, appearance) = menu_models(s);
+    app.global::<Ferry>().set_languages(languages);
+    app.global::<Ferry>().set_appearance(appearance);
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -155,21 +163,30 @@ fn main() -> Result<(), slint::PlatformError> {
     let app = AppWindow::new()?;
     let _ = slint::select_bundled_translation(&settings.language);
     app.set_language(settings.language.clone().into());
-    app.set_dark(settings.dark);
+    app.global::<Ferry>().set_dark(settings.dark);
     app.set_system_name(shorten(&scan::computer_name(), TITLE_CHARS).into());
     set_menus(&app, &settings);
     refresh(&app, &settings.language);
     let settings = Rc::new(RefCell::new(settings));
     let help: Rc<RefCell<Option<HelpWindow>>> = Rc::default();
 
-    app.on_show_help({
-        let (settings, help) = (settings.clone(), help.clone());
+    app.global::<Ferry>().on_show_help({
+        let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
         move || {
-            let (settings, help) = (settings.clone(), help.clone());
+            let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let mut help = help.borrow_mut();
                 if help.is_none() {
                     *help = HelpWindow::new().ok();
+                    // Menü der Anleitung leitet an das Hauptfenster weiter
+                    if let Some(h) = help.as_ref() {
+                        let w = weak.clone();
+                        h.global::<Ferry>().on_select_language(move |i| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_language(i)));
+                        let w = weak.clone();
+                        h.global::<Ferry>().on_select_dark(move |d| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_dark(d)));
+                        let w = weak.clone();
+                        h.global::<Ferry>().on_show_help(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_help()));
+                    }
                 }
                 if let Some(h) = help.as_ref() {
                     update_help(h, &settings.borrow());
@@ -181,7 +198,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // Änderungen aus dem Menü erst nach dem Klick ausführen: Sie benennen die Menüeinträge um,
     // und das während der Menü-Verarbeitung von macOS führte zum Absturz.
-    app.on_select_language({
+    app.global::<Ferry>().on_select_language({
         let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
         move |index| {
             let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
@@ -199,13 +216,13 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    app.on_select_dark({
+    app.global::<Ferry>().on_select_dark({
         let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
         move |dark| {
             let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let Some(app) = weak.upgrade() else { return };
-                app.set_dark(dark);
+                app.global::<Ferry>().set_dark(dark);
                 settings.borrow_mut().dark = dark;
                 save_settings(&settings.borrow());
                 set_menus(&app, &settings.borrow());

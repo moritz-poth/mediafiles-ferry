@@ -116,35 +116,24 @@ component FerryButton {
     }
 }
 
-export component AppWindow inherits Window {
-    title: "MediaFiles Ferry";
-    default-font-family: "JetBrains Mono";
-    default-font-size: 13px;
-    background: Theme.background;
-    width: Metrics.window-width;
-    height: main.preferred-height;
-
-    in property <string> system-name;
-    in property <[VolumeRow]> volumes;
-    in property <int> minutes-since-scan: -1;
-    in property <bool> scanning;
-    in property <string> progress;
-    in property <int> warnings;
-    in property <string> error;
-    in property <bool> has-manifest;
-    in property <string> language: "en";
+// Gemeinsame Basis aller Fenster: Schrift, Farben und Menü. Auf dem Mac gehört die Menüleiste zum aktiven Fenster,
+// ohne eigenes Menü wären die Einträge weg, sobald die Anleitung vorne ist.
+export global Ferry {
     in property <[MenuChoice]> languages;
     in property <[bool]> appearance;
     in property <bool> dark: true;
-
-    callback scan();
-    callback save-manifest();
-    callback open-manifest();
-    callback import-delivery();
     callback select-language(int);
     callback select-dark(bool);
     callback show-help();
+}
 
+component FerryWindow inherits Window {
+    default-font-family: "JetBrains Mono";
+    default-font-size: 13px;
+    background: Theme.background;
+
+    property <bool> dark: Ferry.dark;
+    // Globale Werte gelten je Fenster, darum in jedem Fenster setzen.
     init => {
         Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
     }
@@ -158,31 +147,53 @@ export component AppWindow inherits Window {
             title: @tr("Settings");
             Menu {
                 title: @tr("Language");
-                for l[i] in root.languages: MenuItem {
+                for l[i] in Ferry.languages: MenuItem {
                     title: l.title;
                     checkable: true;
                     checked: l.checked;
-                    activated => { root.select-language(i); }
+                    activated => { Ferry.select-language(i); }
                 }
             }
             Menu {
                 title: @tr("Appearance");
-                for checked[i] in root.appearance: MenuItem {
+                for checked[i] in Ferry.appearance: MenuItem {
                     title: i == 0 ? @tr("Dark") : @tr("Light");
                     checkable: true;
                     checked: checked;
-                    activated => { root.select-dark(i == 0); }
+                    activated => { Ferry.select-dark(i == 0); }
                 }
             }
         }
         Menu {
             title: @tr("Help");
             MenuItem {
-                title: @tr("MediaFiles Ferry Help");
-                activated => { root.show-help(); }
+                title: @tr("Manual");
+                activated => { Ferry.show-help(); }
             }
         }
     }
+
+}
+
+export component AppWindow inherits FerryWindow {
+    title: "MediaFiles Ferry";
+    width: Metrics.window-width;
+    height: main.preferred-height;
+
+    in property <string> system-name;
+    in property <[VolumeRow]> volumes;
+    in property <int> minutes-since-scan: -1;
+    in property <bool> scanning;
+    in property <string> progress;
+    in property <int> warnings;
+    in property <string> error;
+    in property <bool> has-manifest;
+    in property <string> language: "en";
+
+    callback scan();
+    callback save-manifest();
+    callback open-manifest();
+    callback import-delivery();
 
     // animierte Punkte hinter "Scanning", damit man sieht, dass etwas läuft
     property <int> dot-count;
@@ -306,29 +317,16 @@ export component AppWindow inherits Window {
 }
 
 // Anleitung: gleiche Schrift, Farben und Abstände wie das Hauptfenster; Inhalt aus docs/help/<sprache>.md.
-export component HelpWindow inherits Window {
-    title: @tr("MediaFiles Ferry Help");
-    default-font-family: "JetBrains Mono";
-    default-font-size: 13px;
-    background: Theme.background;
-    width: 640px;
-    height: 760px;
+export component HelpWindow inherits FerryWindow {
+    title: @tr("MediaFiles Ferry Manual");
+    width: 720px;
+    height: 860px;
 
-    in property <bool> dark: true;
     in property <string> subtitle;
     in property <[HelpBlock]> blocks;
 
-    // Globale Werte gelten je Fenster, darum auch hier setzen.
-    init => {
-        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
-    }
-    changed dark => {
-        Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
-    }
-
     VerticalLayout {
         padding: Metrics.padding;
-        padding-bottom: 0;
         spacing: Metrics.spacing;
 
         Headline { }
@@ -344,7 +342,6 @@ export component HelpWindow inherits Window {
                 content := VerticalLayout {
                     x: 0;
                     width: flick.width - 16px;
-                    padding-bottom: Metrics.padding;
                     spacing: 12px;
                     for b in root.blocks: VerticalLayout {
                         padding-top: b.heading != "" ? 16px : 0;

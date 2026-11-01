@@ -1,4 +1,4 @@
-# User Guide
+# Manual
 
 ## What MediaFiles Ferry does
 
