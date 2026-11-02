@@ -34,26 +34,38 @@ pub enum Task {
     Duplicates { system: String, places: Vec<String>, files: usize },
 }
 
-impl fmt::Display for Task {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl Task {
+    /// Text in der gewünschten Sprache ("de", sonst Englisch); landet in der App und in der Aufgabendatei der Lieferung.
+    pub fn describe(&self, lang: &str) -> String {
+        let de = lang == "de";
         match self {
-            Task::RebuildDb { system, volume, folder } => {
-                write!(f, "[{system}] Datenbank neu schreiben: {volume}/{folder}")
-            }
-            Task::Rebalance { system, volume, folder, files } => {
-                write!(f, "[{system}] Ordner aufteilen (rebalancen): {volume}/{folder} hat {files} Dateien")
-            }
-            Task::Conflict { system, volume, folder, name } => {
-                write!(f, "[{system}] Gleicher Name, anderer Inhalt – nicht kopiert, bitte prüfen: {volume}/{folder}/{name}")
-            }
-            Task::Duplicates { system, places, files } => {
-                write!(f, "[{system}] {files} doppelte Dateien in: {}", places.join(", "))
-            }
+            Task::RebuildDb { system, volume, folder } => match de {
+                true => format!("[{system}] Datenbank neu schreiben: {volume}/{folder}"),
+                false => format!("[{system}] Rebuild database: {volume}/{folder}"),
+            },
+            Task::Rebalance { system, volume, folder, files } => match de {
+                true => format!("[{system}] Ordner aufteilen (rebalancen): {volume}/{folder} hat {files} Dateien"),
+                false => format!("[{system}] Rebalance folder: {volume}/{folder} has {files} files"),
+            },
+            Task::Conflict { system, volume, folder, name } => match de {
+                true => format!("[{system}] Gleicher Name, anderer Inhalt – nicht kopiert, bitte prüfen: {volume}/{folder}/{name}"),
+                false => format!("[{system}] Same name, different content – not copied, please check: {volume}/{folder}/{name}"),
+            },
+            Task::Duplicates { system, places, files } => match de {
+                true => format!("[{system}] {files} doppelte Dateien in: {}", places.join(", ")),
+                false => format!("[{system}] {files} duplicate files in: {}", places.join(", ")),
+            },
         }
     }
 }
 
-#[derive(Default, Debug)]
+impl fmt::Display for Task {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&self.describe("en"))
+    }
+}
+
+#[derive(Default, Debug, Clone)]
 pub struct Plan {
     pub copies: Vec<Copy>,
     pub tasks: Vec<Task>,

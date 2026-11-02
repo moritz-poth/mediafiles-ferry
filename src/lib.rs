@@ -49,7 +49,7 @@ impl Manifest {
     pub fn load(path: &Path) -> io::Result<Self> {
         let m: Manifest = serde_json::from_slice(&fs::read(path)?)?;
         if m.format != FORMAT {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("{} ist kein Ferry-Manifest", path.display())));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("{} is not a Ferry manifest", path.display())));
         }
         Ok(m)
     }

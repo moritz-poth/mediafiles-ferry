@@ -6,8 +6,6 @@ MediaFiles Ferry keeps the Avid media files (MXF) of several edit systems in syn
 
 Ferry **never deletes** media files and **never overwrites** an existing media file.
 
-*Preview version:* comparing, collecting and importing are coming to the app next. Until then they are available in the command-line version.
-
 ## How it works
 
 1. **Scan** each system. Ferry records every MXF file with a checksum and writes a small *manifest* file – a list of files, no media.
@@ -35,6 +33,24 @@ Click **Scan**. Ferry finds all connected drives with `Avid MediaFiles/MXF` and 
 
 Then click **Save manifest…** and send the file to the other system. The file name contains date, time and computer name, e.g. `261101-1312_Mac Studio_Manifest.ferry`.
 
+## Compare and collect
+
+1. Scan this system first, so that your own manifest is up to date.
+2. Click **Open manifest…** and choose the manifest of the other system.
+3. **Assign drives:** drives without a drive of the same name on the other side need a target – or **Don't send**. Ferry remembers your choice for this system.
+4. **Folders on both sides:** choose **Merge** or **Rename** for every folder (see below).
+5. Check the number of files and the tasks, then click **Collect…** and choose where the delivery folder should be created – e.g. on an external drive.
+
+Ferry copies every file with a checksum check into a new folder named like `261102-1830_Mac Studio_to_MacBook`. It also contains `Tasks.txt` with instructions for importing by hand. If collecting is interrupted, collecting again continues where it stopped.
+
+## Verify and import
+
+1. Quit Media Composer.
+2. Click **Verify & import…** and choose the delivery folder.
+3. Check the drives: every drive of the delivery needs a drive on this system. Drives with the same name are assigned automatically.
+4. Click **Verify & import**. Ferry first verifies every file of the delivery. Only if everything is complete and undamaged does it import – it only adds files and never overwrites a media file. Replaced databases are kept in `Avid MediaFiles/Ferry-Backup/`.
+5. Scan again afterwards, so that your manifest is up to date.
+
 ## When is something copied?
 
 A file counts as **present** if it exists anywhere on the other system with the same name and checksum – on any drive, in any folder.
@@ -58,7 +74,7 @@ Avid creates folders like `1` on every system. If such a folder exists on both s
 
 ## Task list
 
-Everything Ferry must not do itself ends up in the task list (also in `Aufgaben.txt` of each delivery). The system on which the task has to be done is shown in brackets.
+Everything Ferry must not do itself ends up in the task list (also in `Tasks.txt` of each delivery). The system on which the task has to be done is shown in brackets.
 
 - **Rebuild database** – the folder contains files the database does not know. Let Media Composer rebuild it.
 - **Rebalance folder** – the folder has more than 5000 files; Avid gets slow. Spread the files over several folders.
@@ -71,8 +87,8 @@ Everything Ferry must not do itself ends up in the task list (also in `Aufgaben.
 2. For each folder of the delivery, open `Avid MediaFiles/MXF/<folder>` on the drive (create it if missing).
 3. **Copy only the contents of the delivery folder – never drag the whole folder onto an existing folder!** Finder and Explorer would replace it including all media files.
 4. If you are asked to replace `.mxf` files: **don’t** – cancel and check.
-5. Replace `msmFMID.pmr` and `msmMMOB.mdb` only in the folders listed in `Aufgaben.txt`.
+5. Replace `msmFMID.pmr` and `msmMMOB.mdb` only in the folders listed in `Tasks.txt` (German: `Aufgaben.txt`).
 
 ## Settings
 
-In the **Settings** menu you can choose the language and the appearance (dark or light).
+In the **Settings** menu you can choose the language and the appearance (dark or light). **Help → About MediaFiles Ferry** shows the version and the license.

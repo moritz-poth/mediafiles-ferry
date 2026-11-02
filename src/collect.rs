@@ -5,8 +5,14 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Read, Write};
 
 pub const DELIVERY_FORMAT: &str = "mediafiles-ferry-delivery";
-pub const DELIVERY_FILE: &str = "ferry-lieferung.json";
-pub const TASKS_FILE: &str = "Aufgaben.txt";
+pub const DELIVERY_FILE: &str = "ferry-delivery.json";
+/// Name in Lieferungen bis 0.1 – wird beim Lesen weiter erkannt
+const LEGACY_DELIVERY_FILE: &str = "ferry-lieferung.json";
+
+/// Aufgabendatei der Lieferung, in der Sprache des Absenders
+pub fn tasks_file(lang: &str) -> &'static str {
+    if lang == "de" { "Aufgaben.txt" } else { "Tasks.txt" }
+}
 pub const BACKUP_DIR: &str = "Ferry-Backup";
 
 #[derive(Serialize, Deserialize)]
@@ -35,7 +41,7 @@ fn is_db(name: &str) -> bool {
 }
 
 /// Kopiert alle Dateien des Plans nach `dest/<Volume>/<Ordner>/`. Bricht bei einzelnen Fehlern nicht ab, sondern gibt sie zurück.
-pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, progress: &mut dyn FnMut(&str)) -> io::Result<Vec<String>> {
+pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, lang: &str, progress: &mut dyn FnMut(&str)) -> io::Result<Vec<String>> {
     let mut files = vec![];
     let mut errors = vec![];
     let mut dbs: BTreeMap<String, (usize, Vec<String>)> = BTreeMap::new();
@@ -43,7 +49,7 @@ pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, prog
         let rel = format!("{}/{}/{}", c.to_volume, c.to_folder, c.name);
         progress(&format!("[{}/{}] {rel}", i + 1, plan.copies.len()));
         let Some(vol) = local.volumes.iter().find(|v| v.name == c.from_volume) else {
-            errors.push(format!("{rel}: Volume {} fehlt im Manifest", c.from_volume));
+            errors.push(format!("{rel}: volume {} missing in manifest", c.from_volume));
             continue;
         };
         let src = mxf_dir(Path::new(&vol.path)).join(&c.from_folder).join(&c.name);
@@ -65,34 +71,51 @@ pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, prog
     let db_folders: BTreeMap<String, Vec<String>> = dbs.into_iter().filter(|(_, (n, _))| *n == DB_FILES.len()).map(|(k, (_, f))| (k, f)).collect();
 
     fs::create_dir_all(dest)?;
-    let tasks: Vec<String> = plan.tasks.iter().map(|t| t.to_string()).collect();
-    let mut text = format!(
-        "MediaFiles Ferry – Lieferung von {} für {to_system}\n\n\
-         EINSPIELEN MIT FERRY: \"Lieferung einspielen\" wählen (Media Composer vorher schließen).\n\n\
-         VON HAND EINSPIELEN:\n\
-         1. Media Composer schließen.\n\
-         2. Jeder Ordner dieser Lieferung heißt <Volume>/<Ordner>. Auf dem Volume den Ordner\n   \
-            \"Avid MediaFiles/MXF/<Ordner>\" öffnen (fehlt er, neu anlegen).\n\
-         3. NUR DEN INHALT des Lieferordners hineinkopieren – NIEMALS den ganzen Ordner auf einen\n   \
-            bestehenden Ordner ziehen! Finder und Explorer ersetzen ihn sonst samt allen Mediendateien.\n\
-         4. Fragt das System, ob .mxf-Dateien ersetzt werden sollen: NICHT ersetzen, abbrechen und prüfen.\n\
-         5. msmFMID.pmr und msmMMOB.mdb nur in diesen Ordnern ersetzen:\n",
-        local.system
-    );
+    let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(lang)).collect();
+    let de = lang == "de";
+    let mut text = if de {
+        format!(
+            "MediaFiles Ferry – Lieferung von {} für {to_system}\n\n\
+             EINSPIELEN MIT FERRY: \"Prüfen & einspielen\" wählen (Media Composer vorher schließen).\n\n\
+             VON HAND EINSPIELEN:\n\
+             1. Media Composer schließen.\n\
+             2. Jeder Ordner dieser Lieferung heißt <Volume>/<Ordner>. Auf dem Volume den Ordner\n   \
+                \"Avid MediaFiles/MXF/<Ordner>\" öffnen (fehlt er, neu anlegen).\n\
+             3. NUR DEN INHALT des Lieferordners hineinkopieren – NIEMALS den ganzen Ordner auf einen\n   \
+                bestehenden Ordner ziehen! Finder und Explorer ersetzen ihn sonst samt allen Mediendateien.\n\
+             4. Fragt das System, ob .mxf-Dateien ersetzt werden sollen: NICHT ersetzen, abbrechen und prüfen.\n\
+             5. msmFMID.pmr und msmMMOB.mdb nur in diesen Ordnern ersetzen:\n",
+            local.system
+        )
+    } else {
+        format!(
+            "MediaFiles Ferry – delivery from {} for {to_system}\n\n\
+             IMPORT WITH FERRY: choose \"Verify & import\" (quit Media Composer first).\n\n\
+             IMPORT BY HAND:\n\
+             1. Quit Media Composer.\n\
+             2. Every folder of this delivery is named <volume>/<folder>. On that volume open\n   \
+                \"Avid MediaFiles/MXF/<folder>\" (create it if it is missing).\n\
+             3. Copy ONLY THE CONTENTS of the delivery folder into it – NEVER drag the whole folder onto an\n   \
+                existing folder! Finder and Explorer would replace it including all media files.\n\
+             4. If you are asked to replace .mxf files: DON'T – cancel and check.\n\
+             5. Replace msmFMID.pmr and msmMMOB.mdb only in these folders:\n",
+            local.system
+        )
+    };
     for k in db_folders.keys() {
         text += &format!("   - {k}\n");
     }
     if db_folders.is_empty() {
-        text += "   (keine)\n";
+        text += if de { "   (keine)\n" } else { "   (none)\n" };
     }
-    text += "\nAUFGABEN:\n";
+    text += if de { "\nAUFGABEN:\n" } else { "\nTASKS:\n" };
     for t in &tasks {
         text += &format!("[ ] {t}\n");
     }
     for e in &errors {
-        text += &format!("[ ] Nicht kopiert: {e}\n");
+        text += &format!("[ ] {} {e}\n", if de { "Nicht kopiert:" } else { "Not copied:" });
     }
-    fs::write(dest.join(TASKS_FILE), text)?;
+    fs::write(dest.join(tasks_file(lang)), text)?;
     let delivery = Delivery {
         format: DELIVERY_FORMAT.into(),
         from: local.system.clone(),
@@ -107,11 +130,18 @@ pub fn collect(local: &Manifest, to_system: &str, plan: &Plan, dest: &Path, prog
 }
 
 fn load(dest: &Path) -> io::Result<Delivery> {
-    let d: Delivery = serde_json::from_slice(&fs::read(dest.join(DELIVERY_FILE))?)?;
+    let file = [DELIVERY_FILE, LEGACY_DELIVERY_FILE].iter().map(|f| dest.join(f)).find(|p| p.exists());
+    let not_delivery = || io::Error::new(io::ErrorKind::InvalidData, format!("{} is not a Ferry delivery", dest.display()));
+    let d: Delivery = serde_json::from_slice(&fs::read(file.ok_or_else(not_delivery)?)?).map_err(|_| not_delivery())?;
     if d.format != DELIVERY_FORMAT {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "keine Ferry-Lieferung"));
+        return Err(not_delivery());
     }
     Ok(d)
+}
+
+/// Lieferung lesen, ohne etwas zu prüfen (für die Übersicht vor dem Einspielen).
+pub fn load_delivery(dest: &Path) -> io::Result<Delivery> {
+    load(dest)
 }
 
 /// Prüft eine Lieferung gegen ihr Manifest. Gibt die gefundenen Probleme zurück (leer = alles in Ordnung).
@@ -122,8 +152,8 @@ pub fn verify(dest: &Path, progress: &mut dyn FnMut(&str)) -> io::Result<Vec<Str
         progress(&format!("[{}/{}] {}", i + 1, d.files.len(), f.path));
         match hash_file(&dest.join(&f.path)) {
             Ok(h) if h == f.hash => {}
-            Ok(_) => problems.push(format!("{}: beschädigt (Prüfsumme stimmt nicht)", f.path)),
-            Err(e) => problems.push(format!("{}: fehlt oder nicht lesbar ({e})", f.path)),
+            Ok(_) => problems.push(format!("{}: damaged (checksum does not match)", f.path)),
+            Err(e) => problems.push(format!("{}: missing or unreadable ({e})", f.path)),
         }
     }
     Ok(problems)
@@ -158,7 +188,7 @@ pub fn import(dest: &Path, map: &HashMap<String, String>, progress: &mut dyn FnM
             .get(&vol)
             .map(PathBuf::from)
             .or_else(|| found.iter().find(|p| p.file_name().is_some_and(|n| key(&n.to_string_lossy()) == key(&vol))).cloned())
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("Laufwerk \"{vol}\" nicht gefunden – anschließen oder zuordnen")))?;
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("drive \"{vol}\" not found – connect or assign it")))?;
         volumes.insert(vol, path);
     }
 
@@ -188,7 +218,7 @@ pub fn import(dest: &Path, map: &HashMap<String, String>, progress: &mut dyn FnM
             .filter(|n| n.ends_with(".mxf"))
             .collect();
         if want != have {
-            problems.push(format!("{id}: Ordner enthält andere Dateien als erwartet – Datenbank nicht ersetzt, bitte neu schreiben"));
+            problems.push(format!("{id}: folder contains other files than expected – database not replaced, please rebuild it"));
             continue;
         }
         for f in d.files.iter().filter(|f| f.path.starts_with(&format!("{id}/")) && is_db(&split(&f.path).2)) {
@@ -202,7 +232,7 @@ pub fn import(dest: &Path, map: &HashMap<String, String>, progress: &mut dyn FnM
                 fs::rename(&target, saved.join(&name))?;
             }
             if let Err(e) = copy_verified(&dest.join(&f.path), &target, Some(&f.hash)) {
-                problems.push(format!("{}: {e} – alte Datenbank liegt in {BACKUP_DIR}/{backup}", f.path));
+                problems.push(format!("{}: {e} – old database is in {BACKUP_DIR}/{backup}", f.path));
             }
         }
     }
@@ -219,7 +249,7 @@ fn copy_verified(src: &Path, dst: &Path, expected: Option<&str>) -> io::Result<(
             None => hash_file(src)?,
         };
         if have != want {
-            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "Ziel existiert bereits mit anderem Inhalt – nicht überschrieben"));
+            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "target already exists with different content – not overwritten"));
         }
         return Ok((fs::metadata(dst)?.len(), have));
     }
@@ -258,11 +288,11 @@ fn copy_verified(src: &Path, dst: &Path, expected: Option<&str>) -> io::Result<(
         Err(io::Error::other(msg.to_string()))
     };
     if expected.is_some_and(|e| e != hash) {
-        return fail("Quelle weicht vom Scan ab (verändert oder beschädigt) – bitte neu scannen");
+        return fail("source differs from the scan (changed or damaged) – please scan again");
     }
     // shortcut: das Nachlesen kann aus dem OS-Cache kommen; F_NOCACHE/FILE_FLAG_NO_BUFFERING, falls echte Medienprüfung nötig wird
     if hash_file(&part)? != hash {
-        return fail("Kopie fehlerhaft – Ziellaufwerk prüfen");
+        return fail("copy is faulty – check the target drive");
     }
     fs::rename(&part, dst)?;
     Ok((size, hash))
@@ -303,16 +333,16 @@ mod tests {
         let remote = Manifest { system: "B".into(), volumes: vec![Volume { name: "V".into(), ..Default::default() }], ..Default::default() };
         let p = plan::plan(&s.manifest, &remote, &Options::default(), "261031");
         let dest = root.join("Lieferung");
-        assert!(collect(&s.manifest, "B", &p, &dest, &mut |_| {}).unwrap().is_empty());
+        assert!(collect(&s.manifest, "B", &p, &dest, "de", &mut |_| {}).unwrap().is_empty());
         assert!(dest.join("V/Avid8.1/msmMMOB.mdb").exists());
-        assert!(fs::read_to_string(dest.join(TASKS_FILE)).unwrap().contains("NUR DEN INHALT"));
+        assert!(fs::read_to_string(dest.join(tasks_file("de"))).unwrap().contains("NUR DEN INHALT"));
         assert!(verify(&dest, &mut |_| {}).unwrap().is_empty());
         // zweiter Lauf setzt fort statt zu überschreiben
-        assert!(collect(&s.manifest, "B", &p, &dest, &mut |_| {}).unwrap().is_empty());
+        assert!(collect(&s.manifest, "B", &p, &dest, "de", &mut |_| {}).unwrap().is_empty());
 
         fs::write(dest.join("V/Avid8.1/a.mxf"), "XXX").unwrap();
         assert_eq!(verify(&dest, &mut |_| {}).unwrap().len(), 1);
-        assert_eq!(collect(&s.manifest, "B", &p, &dest, &mut |_| {}).unwrap().len(), 1);
+        assert_eq!(collect(&s.manifest, "B", &p, &dest, "de", &mut |_| {}).unwrap().len(), 1);
 
         // stille Veränderung (gleiche Größe, gleiches Datum) findet nur die vollständige Prüfung
         let a = folder.join("a.mxf");
@@ -337,7 +367,8 @@ mod tests {
         let sb = scan::scan(&[b.clone()], false, None, &mut |_| {}).unwrap().manifest;
         let p = plan::plan(&sa, &sb, &Options::default(), "261101");
         let dest = root.join("Lieferung");
-        assert!(collect(&sa, "B", &p, &dest, &mut |_| {}).unwrap().is_empty());
+        assert!(collect(&sa, "B", &p, &dest, "en", &mut |_| {}).unwrap().is_empty());
+        assert!(fs::read_to_string(dest.join(tasks_file("en"))).unwrap().contains("ONLY THE CONTENTS"));
 
         // seit dem Scan ist auf B in Ordner 2 eine Datei dazugekommen -> dessen DB darf nicht ersetzt werden
         fs::write(mxf_dir(&b).join("2/neu.mxf"), "n").unwrap();
@@ -356,5 +387,14 @@ mod tests {
         // erneutes Einspielen ist harmlos
         assert_eq!(import(&dest, &map, &mut |_| {}).unwrap().problems.len(), 1);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn legacy_delivery_file_name_is_still_read() {
+        let dir = tmp("legacy");
+        let d = Delivery { format: DELIVERY_FORMAT.into(), from: "A".into(), to: "B".into(), created: 0, files: vec![], db_folders: Default::default(), tasks: vec![] };
+        fs::write(dir.join("ferry-lieferung.json"), serde_json::to_vec(&d).unwrap()).unwrap();
+        assert_eq!(load_delivery(&dir).unwrap().from, "A");
+        assert!(load_delivery(&tmp("empty")).is_err());
     }
 }

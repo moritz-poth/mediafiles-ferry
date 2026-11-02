@@ -6,8 +6,6 @@ MediaFiles Ferry hält die Avid-Mediendateien (MXF) mehrerer Schnittplätze auf 
 
 Ferry **löscht nie** Mediendateien und **überschreibt nie** eine vorhandene Mediendatei.
 
-*Vorschauversion:* Abgleichen, Sammeln und Einspielen kommen als Nächstes in die App. Bis dahin gibt es sie in der Kommandozeilen-Version.
-
 ## So funktioniert es
 
 1. **Scannen** auf jedem System. Ferry erfasst jede MXF-Datei mit Prüfsumme und schreibt eine kleine *Manifest*-Datei – eine Liste der Dateien, keine Medien.
@@ -33,7 +31,25 @@ Auf **Scannen** klicken. Ferry findet alle angeschlossenen Laufwerke mit `Avid M
 - **Weitere Scans sind schnell:** Ferry merkt sich die Prüfsummen und liest nur neue oder veränderte Dateien.
 - Wird die App während eines Scans geschlossen oder stürzt sie ab, geht nichts verloren – der nächste Scan macht dort weiter.
 
-Danach auf **Manifest sichern …** klicken und die Datei an das andere System schicken. Der Dateiname enthält Datum, Uhrzeit und Rechnername, z. B. `261101-1312_Mac Studio_Manifest.ferry`.
+Danach auf **Manifest sichern…** klicken und die Datei an das andere System schicken. Der Dateiname enthält Datum, Uhrzeit und Rechnername, z. B. `261101-1312_Mac Studio_Manifest.ferry`.
+
+## Vergleichen und sammeln
+
+1. Zuerst dieses System scannen, damit das eigene Manifest aktuell ist.
+2. Auf **Manifest öffnen…** klicken und das Manifest des anderen Systems wählen.
+3. **Laufwerke zuordnen:** Laufwerke ohne gleichnamiges Gegenstück brauchen ein Ziel – oder **Nicht senden**. Ferry merkt sich die Wahl für dieses System.
+4. **Ordner auf beiden Seiten:** Für jeden Ordner **Zusammenführen** oder **Umbenennen** wählen (siehe unten).
+5. Anzahl der Dateien und Aufgaben prüfen, dann auf **Sammeln…** klicken und wählen, wo der Lieferordner entstehen soll – z. B. auf einer externen Festplatte.
+
+Ferry kopiert jede Datei mit Prüfsummen-Kontrolle in einen neuen Ordner wie `261102-1830_Mac Studio_to_MacBook`. Darin liegt auch `Aufgaben.txt` mit einer Anleitung zum Einspielen von Hand. Wird das Sammeln unterbrochen, macht ein erneutes Sammeln dort weiter.
+
+## Prüfen und einspielen
+
+1. Media Composer beenden.
+2. Auf **Prüfen & einspielen…** klicken und den Lieferordner wählen.
+3. Laufwerke prüfen: Jedes Laufwerk der Lieferung braucht ein Laufwerk auf diesem System. Gleichnamige werden automatisch zugeordnet.
+4. Auf **Prüfen & einspielen** klicken. Ferry prüft zuerst jede Datei der Lieferung. Nur wenn alles vollständig und unbeschädigt ist, wird eingespielt – Ferry fügt nur hinzu und überschreibt nie eine Mediendatei. Ersetzte Datenbanken landen in `Avid MediaFiles/Ferry-Backup/`.
+5. Danach neu scannen, damit das Manifest aktuell ist.
 
 ## Wann wird was kopiert?
 
@@ -71,8 +87,8 @@ Was Ferry nicht selbst erledigen darf, landet in der Aufgabenliste (auch in `Auf
 2. Für jeden Ordner der Lieferung auf dem Laufwerk `Avid MediaFiles/MXF/<Ordner>` öffnen (fehlt er, neu anlegen).
 3. **Nur den Inhalt des Lieferordners hineinkopieren – niemals den ganzen Ordner auf einen bestehenden Ordner ziehen!** Finder und Explorer ersetzen ihn sonst samt allen Mediendateien.
 4. Fragt das System, ob `.mxf`-Dateien ersetzt werden sollen: **nicht ersetzen**, abbrechen und prüfen.
-5. `msmFMID.pmr` und `msmMMOB.mdb` nur in den Ordnern ersetzen, die in `Aufgaben.txt` stehen.
+5. `msmFMID.pmr` und `msmMMOB.mdb` nur in den Ordnern ersetzen, die in `Aufgaben.txt` (englisch: `Tasks.txt`) stehen.
 
 ## Einstellungen
 
-Im Menü **Einstellungen** wählst du die Sprache und die Darstellung (dunkel oder hell).
+Im Menü **Einstellungen** wählst du die Sprache und die Darstellung (dunkel oder hell). **Hilfe → Über MediaFiles Ferry** zeigt Version und Lizenz.

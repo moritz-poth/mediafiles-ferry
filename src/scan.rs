@@ -109,7 +109,7 @@ pub fn scan(volumes: &[PathBuf], full: bool, cache_dir: Option<&Path>, progress:
                 }
                 if path.is_dir() {
                     if !n.eq_ignore_ascii_case("Creating") {
-                        warnings.push(format!("{name}/{folder_name}/{n}: unerwarteter Unterordner, ignoriert"));
+                        warnings.push(format!("{name}/{folder_name}/{n}: unexpected subfolder, ignored"));
                     }
                     continue;
                 }
@@ -124,7 +124,7 @@ pub fn scan(volumes: &[PathBuf], full: bool, cache_dir: Option<&Path>, progress:
                 let meta = match fs::metadata(&path) {
                     Ok(m) => m,
                     Err(e) => {
-                        warnings.push(format!("{name}/{rel}: nicht lesbar ({e})"));
+                        warnings.push(format!("{name}/{rel}: unreadable ({e})"));
                         continue;
                     }
                 };
@@ -136,12 +136,12 @@ pub fn scan(volumes: &[PathBuf], full: bool, cache_dir: Option<&Path>, progress:
                     _ => match hash_file(&path) {
                         Ok(h) => {
                             if cached.is_some_and(|c| c.hash != h) {
-                                warnings.push(format!("{name}/{rel}: Inhalt hat sich ohne neues Änderungsdatum verändert – Datei vermutlich beschädigt"));
+                                warnings.push(format!("{name}/{rel}: content changed without a new modification date – file is probably damaged"));
                             }
                             h
                         }
                         Err(e) => {
-                            warnings.push(format!("{name}/{rel}: nicht lesbar ({e})"));
+                            warnings.push(format!("{name}/{rel}: unreadable ({e})"));
                             continue;
                         }
                     },

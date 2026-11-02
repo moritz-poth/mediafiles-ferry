@@ -1,7 +1,11 @@
-//! Grafische Oberfläche. Phase 2, Schritt 1: Startbildschirm; Sprache und Darstellung im Menü Settings.
+//! Grafische Oberfläche: Scannen, Vergleichen und Sammeln, Lieferungen prüfen und einspielen.
+//! Sprache und Darstellung im Menü Settings.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-use mediafiles_ferry::{MANIFEST_EXT, Manifest, key, manifest_file_name, scan, write_atomic};
+mod flow;
+
+use flow::{Choice, Compare, Incoming, Mappings};
+use mediafiles_ferry::{MANIFEST_EXT, Manifest, collect, key, local_time, manifest_file_name, scan, write_atomic};
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
@@ -158,6 +162,81 @@ fn set_menus(app: &AppWindow, s: &Settings) {
     app.global::<Ferry>().set_appearance(appearance);
 }
 
+fn map_rows(app: &AppWindow, drives: &[Choice], with_skip: bool) -> ModelRc<MapRow> {
+    let rows: Vec<MapRow> = drives
+        .iter()
+        .map(|d| {
+            let mut options = vec![app.get_txt_choose()];
+            options.extend(d.options.iter().map(|o| slint::SharedString::from(shorten(o, NAME_CHARS))));
+            if with_skip {
+                options.push(app.get_txt_skip());
+            }
+            MapRow { name: shorten(&d.name, NAME_CHARS).into(), options: ModelRc::new(VecModel::from(options)), selected: d.selected as i32 }
+        })
+        .collect();
+    ModelRc::new(VecModel::from(rows))
+}
+
+fn strings(v: &[String], max: usize) -> ModelRc<slint::SharedString> {
+    ModelRc::new(VecModel::from(v.iter().map(|s| slint::SharedString::from(shorten(s, max))).collect::<Vec<_>>()))
+}
+
+/// Vergleichsseite aus dem aktuellen Zustand neu aufbauen.
+fn show_compare(app: &AppWindow, c: &Compare) {
+    let lang = current_language(app);
+    let plan = c.plan();
+    let (files, bytes) = flow::media(&plan);
+    app.set_remote_name(shorten(&c.remote.system, TITLE_CHARS).into());
+    let fmt = if lang == "de" { "%d.%m.%Y %H:%M" } else { "%Y-%m-%d %H:%M" };
+    app.set_remote_date(local_time(c.remote.created, fmt).into());
+    app.set_maps(map_rows(app, &c.drives, true));
+    let rows: Vec<ChoiceRow> = c.collisions.iter().map(|(id, ch)| ChoiceRow { name: shorten(id, NAME_CHARS + 4).into(), choice: *ch }).collect();
+    app.set_collisions(ModelRc::new(VecModel::from(rows)));
+    app.set_copy_files(files as i32);
+    app.set_copy_size(flow::format_size(bytes, &lang).into());
+    let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(&lang)).collect();
+    app.set_tasks(strings(&tasks, 400));
+    app.set_can_collect(c.ready());
+    app.set_page(Page::Compare);
+}
+
+fn show_incoming(app: &AppWindow, i: &Incoming) {
+    let (files, bytes) = i.media();
+    app.set_delivery_from(shorten(&i.delivery.from, TITLE_CHARS).into());
+    app.set_delivery_files(files as i32);
+    app.set_delivery_size(flow::format_size(bytes, &current_language(app)).into());
+    app.set_delivery_maps(map_rows(app, &i.drives, false));
+    app.set_can_import(i.ready());
+    app.set_page(Page::Delivery);
+}
+
+/// Fortschritt aus einem Hintergrund-Thread an die Oberfläche geben.
+fn progress_to(weak: &slint::Weak<AppWindow>) -> impl FnMut(&str) + Send + 'static {
+    let weak = weak.clone();
+    move |line: &str| {
+        let (text, value) = (line.to_string(), flow::progress_value(line));
+        let w = weak.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(a) = w.upgrade() {
+                a.set_work_text(shorten(&text, LINE_CHARS).into());
+                a.set_work_value(value);
+            }
+        });
+    }
+}
+
+fn show_result(app: &AppWindow, kind: i32, path: Option<&std::path::Path>, problems: &[String], tasks: &[String]) {
+    app.set_result_kind(kind);
+    app.set_result_path(path.map(|p| p.display().to_string()).unwrap_or_default().into());
+    app.set_result_problems(strings(problems, 400));
+    app.set_result_tasks(strings(tasks, 400));
+    app.set_page(Page::Result);
+}
+
+fn open_url(target: &str) {
+    let _ = std::process::Command::new("open").arg(target).spawn();
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let settings: Settings = fs::read(dir().join("settings.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
     let app = AppWindow::new()?;
@@ -169,6 +248,47 @@ fn main() -> Result<(), slint::PlatformError> {
     refresh(&app, &settings.language);
     let settings = Rc::new(RefCell::new(settings));
     let help: Rc<RefCell<Option<HelpWindow>>> = Rc::default();
+    let about: Rc<RefCell<Option<AboutWindow>>> = Rc::default();
+
+    app.global::<Ferry>().on_show_about({
+        let (weak, settings, about) = (app.as_weak(), settings.clone(), about.clone());
+        move || {
+            let (weak, settings, about) = (weak.clone(), settings.clone(), about.clone());
+            slint::Timer::single_shot(Duration::ZERO, move || {
+                let mut about = about.borrow_mut();
+                if about.is_none() {
+                    *about = AboutWindow::new().ok();
+                    if let Some(a) = about.as_ref() {
+                        a.set_version(env!("CARGO_PKG_VERSION").into());
+                        a.on_open_source(|| open_url("https://github.com/moritz-poth/mediafiles-ferry"));
+                        a.on_open_license(|| {
+                            // mitgelieferter Lizenztext, sonst die Seite der FSF
+                            let bundled = std::env::current_exe().ok().and_then(|e| Some(e.parent()?.parent()?.join("Resources/LICENSE.txt")));
+                            match bundled.filter(|p| p.exists()) {
+                                Some(p) => open_url(&p.display().to_string()),
+                                None => open_url("https://www.gnu.org/licenses/gpl-3.0.html"),
+                            }
+                        });
+                        // Menü des About-Fensters leitet an das Hauptfenster weiter
+                        let w = weak.clone();
+                        a.global::<Ferry>().on_select_language(move |i| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_language(i)));
+                        let w = weak.clone();
+                        a.global::<Ferry>().on_select_dark(move |d| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_dark(d)));
+                        let w = weak.clone();
+                        a.global::<Ferry>().on_show_help(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_help()));
+                    }
+                }
+                if let Some(a) = about.as_ref() {
+                    let s = settings.borrow();
+                    a.global::<Ferry>().set_dark(s.dark);
+                    let (languages, appearance) = menu_models(&s);
+                    a.global::<Ferry>().set_languages(languages);
+                    a.global::<Ferry>().set_appearance(appearance);
+                    let _ = a.show();
+                }
+            });
+        }
+    });
 
     app.global::<Ferry>().on_show_help({
         let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
@@ -186,6 +306,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         h.global::<Ferry>().on_select_dark(move |d| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_dark(d)));
                         let w = weak.clone();
                         h.global::<Ferry>().on_show_help(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_help()));
+                        let w = weak.clone();
+                        h.global::<Ferry>().on_show_about(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_about()));
                     }
                 }
                 if let Some(h) = help.as_ref() {
@@ -269,6 +391,168 @@ fn main() -> Result<(), slint::PlatformError> {
                     weak.unwrap().set_error(shorten(&format!("{}: {e}", target.display()), LINE_CHARS).into());
                 }
             }
+        }
+    });
+
+    // ── Vergleichen und Sammeln ──
+    let compare: Rc<RefCell<Option<Compare>>> = Rc::default();
+    let incoming: Rc<RefCell<Option<Incoming>>> = Rc::default();
+
+    app.on_open_manifest({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move || {
+            let app = weak.unwrap();
+            let Some(file) = rfd::FileDialog::new().add_filter("MediaFiles Ferry Manifest", &[MANIFEST_EXT]).pick_file() else { return };
+            let loaded = Manifest::load(&manifest_path()).and_then(|l| Manifest::load(&file).map(|r| (l, r)));
+            match loaded {
+                Ok((local, remote)) if key(&local.system) == key(&remote.system) => {
+                    app.set_error(shorten(&format!("{}: {}", remote.system, app.get_txt_same_system()), LINE_CHARS).into());
+                }
+                Ok((local, remote)) => {
+                    let c = Compare::new(local, remote, &Mappings::load(&dir()));
+                    app.set_error("".into());
+                    show_compare(&app, &c);
+                    *compare.borrow_mut() = Some(c);
+                }
+                Err(e) => app.set_error(shorten(&e.to_string(), LINE_CHARS).into()),
+            }
+        }
+    });
+
+    app.on_map_changed({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move |row, value| {
+            let mut c = compare.borrow_mut();
+            let Some(c) = c.as_mut() else { return };
+            c.drives[row as usize].selected = value as usize;
+            c.refresh_collisions();
+            show_compare(&weak.unwrap(), c);
+        }
+    });
+
+    app.on_choice_changed({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move |row, value| {
+            let mut c = compare.borrow_mut();
+            let Some(c) = c.as_mut() else { return };
+            c.collisions[row as usize].1 = value;
+            show_compare(&weak.unwrap(), c);
+        }
+    });
+
+    app.on_collect({
+        let (weak, compare) = (app.as_weak(), compare.clone());
+        move || {
+            let app = weak.unwrap();
+            let c = compare.borrow();
+            let Some(c) = c.as_ref() else { return };
+            let Some(parent) = rfd::FileDialog::new().set_title(app.get_txt_choose_target()).pick_folder() else { return };
+            let mut m = Mappings::load(&dir());
+            c.remember(&mut m);
+            m.save(&dir());
+            let (local, to, plan, dest, lang) = (c.local.clone(), c.remote.system.clone(), c.plan(), c.delivery_dir(&parent), current_language(&app));
+            let tasks: Vec<String> = plan.tasks.iter().map(|t| t.describe(&lang)).collect();
+            app.set_work_kind(0);
+            app.set_work_value(0.0);
+            app.set_work_text("".into());
+            app.set_page(Page::Working);
+            let (weak, mut progress) = (weak.clone(), progress_to(&weak));
+            std::thread::spawn(move || {
+                let result = collect::collect(&local, &to, &plan, &dest, &lang, &mut progress);
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    match result {
+                        Ok(errors) => show_result(&app, if errors.is_empty() { 0 } else { 1 }, Some(&dest), &errors, &tasks),
+                        Err(e) => show_result(&app, 1, Some(&dest), &[e.to_string()], &tasks),
+                    }
+                });
+            });
+        }
+    });
+
+    // ── Lieferung prüfen und einspielen ──
+    app.on_import_delivery({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move || {
+            let app = weak.unwrap();
+            let Some(folder) = rfd::FileDialog::new().set_title(app.get_txt_choose_delivery()).pick_folder() else { return };
+            match Incoming::open(folder, &Mappings::load(&dir())) {
+                Ok(i) => {
+                    app.set_error("".into());
+                    show_incoming(&app, &i);
+                    *incoming.borrow_mut() = Some(i);
+                }
+                Err(e) => app.set_error(shorten(&e.to_string(), LINE_CHARS).into()),
+            }
+        }
+    });
+
+    app.on_delivery_map_changed({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move |row, value| {
+            let mut i = incoming.borrow_mut();
+            let Some(i) = i.as_mut() else { return };
+            i.drives[row as usize].selected = value as usize;
+            show_incoming(&weak.unwrap(), i);
+        }
+    });
+
+    app.on_start_import({
+        let (weak, incoming) = (app.as_weak(), incoming.clone());
+        move || {
+            let app = weak.unwrap();
+            let i = incoming.borrow();
+            let Some(i) = i.as_ref() else { return };
+            let mut m = Mappings::load(&dir());
+            i.remember(&mut m);
+            m.save(&dir());
+            let (dest, map) = (i.dir.clone(), i.map());
+            app.set_work_kind(1);
+            app.set_work_value(0.0);
+            app.set_work_text("".into());
+            app.set_page(Page::Working);
+            let (weak, mut progress) = (weak.clone(), progress_to(&weak));
+            std::thread::spawn(move || {
+                // erst alles prüfen; nur eine vollständige Lieferung wird eingespielt
+                let verified = collect::verify(&dest, &mut progress);
+                let problems = match verified {
+                    Ok(p) => p,
+                    Err(e) => vec![e.to_string()],
+                };
+                if !problems.is_empty() {
+                    let _ = slint::invoke_from_event_loop(move || weak.upgrade().into_iter().for_each(|a| show_result(&a, 4, Some(&dest), &problems, &[])));
+                    return;
+                }
+                let w = weak.clone();
+                let _ = slint::invoke_from_event_loop(move || w.upgrade().into_iter().for_each(|a| { a.set_work_kind(2); a.set_work_value(0.0); }));
+                let result = collect::import(&dest, &map, &mut progress);
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(app) = weak.upgrade() else { return };
+                    match result {
+                        Ok(r) => show_result(&app, if r.problems.is_empty() { 2 } else { 3 }, None, &r.problems, &r.tasks),
+                        Err(e) => show_result(&app, 3, None, &[e.to_string()], &[]),
+                    }
+                });
+            });
+        }
+    });
+
+    app.on_show_result({
+        let weak = app.as_weak();
+        move || {
+            let path = weak.unwrap().get_result_path().to_string();
+            open_url(&path); // im Finder zeigen
+        }
+    });
+
+    app.on_back({
+        let (weak, compare, incoming) = (app.as_weak(), compare.clone(), incoming.clone());
+        move || {
+            let app = weak.unwrap();
+            *compare.borrow_mut() = None;
+            *incoming.borrow_mut() = None;
+            app.set_page(Page::Home);
+            refresh(&app, &current_language(&app));
         }
     });
 

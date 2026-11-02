@@ -90,3 +90,165 @@ msgstr "Anleitung"
 
 msgid "MediaFiles Ferry Manual"
 msgstr "MediaFiles Ferry Anleitung"
+
+# Vergleichen, Sammeln, Einspielen
+msgid "Open the manifest of the other system."
+msgstr "Öffne das Manifest des anderen Systems."
+
+msgid "Scan this system first."
+msgstr "Scanne zuerst dieses System."
+
+msgid "COMPARE WITH"
+msgstr "VERGLEICH MIT"
+
+msgid "Manifest from {}"
+msgstr "Manifest vom {}"
+
+msgid "ASSIGN DRIVES"
+msgstr "LAUFWERKE ZUORDNEN"
+
+msgid "These drives have no drive with the same name on the other system."
+msgstr "Zu diesen Laufwerken gibt es auf dem anderen System kein gleichnamiges."
+
+msgid "FOLDERS ON BOTH SIDES"
+msgstr "ORDNER AUF BEIDEN SEITEN"
+
+msgid "These folders exist on both systems with files of their own."
+msgstr "Diese Ordner gibt es auf beiden Systemen mit eigenen Dateien."
+
+msgid "Merge"
+msgstr "Zusammenführen"
+
+msgid "Rename"
+msgstr "Umbenennen"
+
+msgid "Merge: same folder, the database must be rebuilt. Rename: new folder with a unique name."
+msgstr "Zusammenführen: gleicher Ordner, die Datenbank muss neu geschrieben werden. Umbenennen: neuer Ordner mit eindeutigem Namen."
+
+msgid "FOR {}"
+msgstr "FÜR {}"
+
+msgid "Nothing to collect – the other system has everything."
+msgstr "Nichts zu sammeln – das andere System hat alles."
+
+msgid "{n} file to collect ({})"
+msgid_plural "{n} files to collect ({})"
+msgstr[0] "{n} Datei zu sammeln ({})"
+msgstr[1] "{n} Dateien zu sammeln ({})"
+
+msgid "TASKS"
+msgstr "AUFGABEN"
+
+msgid "Back"
+msgstr "Zurück"
+
+msgid "Collect…"
+msgstr "Sammeln…"
+
+msgid "Please wait{}"
+msgstr "Bitte warten{}"
+
+msgid "RESULT"
+msgstr "ERGEBNIS"
+
+msgid "PROBLEMS"
+msgstr "PROBLEME"
+
+msgid "Show in Finder"
+msgstr "Im Finder zeigen"
+
+msgid "Done"
+msgstr "Fertig"
+
+msgid "DELIVERY FROM"
+msgstr "LIEFERUNG VON"
+
+msgid "{n} file ({})"
+msgid_plural "{n} files ({})"
+msgstr[0] "{n} Datei ({})"
+msgstr[1] "{n} Dateien ({})"
+
+msgid "DRIVES"
+msgstr "LAUFWERKE"
+
+msgid "Quit Media Composer before importing. Ferry first verifies every file and only imports if the delivery is complete. It never overwrites a media file."
+msgstr "Beende Media Composer vor dem Einspielen. Ferry prüft zuerst jede Datei und spielt nur ein, wenn die Lieferung vollständig ist. Mediendateien werden nie überschrieben."
+
+msgid "Verify & import"
+msgstr "Prüfen & einspielen"
+
+msgid "COLLECTING FOR {}"
+msgstr "SAMMLE FÜR {}"
+
+msgid "VERIFYING DELIVERY"
+msgstr "PRÜFE LIEFERUNG"
+
+msgid "IMPORTING DELIVERY"
+msgstr "SPIELE LIEFERUNG EIN"
+
+msgid "Delivery ready"
+msgstr "Lieferung fertig"
+
+msgid "Delivery ready – some files could not be copied"
+msgstr "Lieferung fertig – einige Dateien konnten nicht kopiert werden"
+
+msgid "Delivery imported"
+msgstr "Lieferung eingespielt"
+
+msgid "Delivery imported with problems"
+msgstr "Lieferung mit Problemen eingespielt"
+
+msgid "Delivery is incomplete or damaged – nothing was imported"
+msgstr "Lieferung unvollständig oder beschädigt – es wurde nichts eingespielt"
+
+msgid "Give this folder to {} (e.g. on a drive) and import it there with “Verify & import”. Instructions for importing by hand are inside."
+msgstr "Gib diesen Ordner an {} weiter (z. B. auf einer Festplatte) und spiele ihn dort mit „Prüfen & einspielen“ ein. Eine Anleitung zum Einspielen von Hand liegt darin."
+
+msgid "Ask {} for a new delivery or copy the folder again."
+msgstr "Bitte {} um eine neue Lieferung oder kopiere den Ordner noch einmal."
+
+msgid "Scan again so that the manifest is up to date."
+msgstr "Scanne noch einmal, damit das Manifest aktuell ist."
+
+msgid "Choose…"
+msgstr "Wählen…"
+
+msgid "Don't send"
+msgstr "Nicht senden"
+
+msgid "this manifest is from this system"
+msgstr "dieses Manifest stammt von diesem System"
+
+msgid "Choose where to create the delivery folder"
+msgstr "Wähle, wo der Lieferordner angelegt wird"
+
+msgid "Choose the delivery folder"
+msgstr "Wähle den Lieferordner"
+
+# Über
+msgid "About MediaFiles Ferry"
+msgstr "Über MediaFiles Ferry"
+
+msgid "VERSION {}"
+msgstr "VERSION {}"
+
+msgid "MediaFiles Ferry is free software: you can redistribute and modify it under the terms of the GNU General Public License, version 3 or later."
+msgstr "MediaFiles Ferry ist freie Software: Du darfst sie unter den Bedingungen der GNU General Public License, Version 3 oder neuer, weitergeben und verändern."
+
+msgid "It comes with ABSOLUTELY NO WARRANTY – use at your own risk."
+msgstr "Sie wird OHNE JEDE GEWÄHRLEISTUNG bereitgestellt – Nutzung auf eigenes Risiko."
+
+msgid "Source code"
+msgstr "Quellcode"
+
+msgid "License"
+msgstr "Lizenz"
+
+msgid "THIRD-PARTY"
+msgstr "DRITTANBIETER"
+
+msgid "JetBrains Mono font – SIL Open Font License 1.1. Slint UI toolkit – used under the GNU GPL v3."
+msgstr "Schrift JetBrains Mono – SIL Open Font License 1.1. Oberfläche Slint – genutzt unter der GNU GPL v3."
+
+msgid "Avid and Media Composer are trademarks of Avid Technology, Inc. MediaFiles Ferry is not affiliated with Avid."
+msgstr "Avid und Media Composer sind Marken von Avid Technology, Inc. MediaFiles Ferry steht in keiner Verbindung zu Avid."

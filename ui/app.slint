@@ -1,5 +1,5 @@
 // Oberfläche von MediaFiles Ferry. Texte stehen auf Englisch in @tr(); Übersetzungen liegen in translations/.
-import { Palette } from "std-widgets.slint";
+import { Palette, ComboBox } from "std-widgets.slint";
 import "fonts/JetBrainsMono-Regular.ttf";
 import "fonts/JetBrainsMono-SemiBold.ttf";
 import "fonts/JetBrainsMono-Bold.ttf";
@@ -26,6 +26,8 @@ export global Metrics {
     out property <length> padding: 32px;
     out property <length> spacing: 24px;
     out property <length> line: 18px;
+    // Breite des Inhalts; umbrechende Texte brauchen sie fest, sonst rechnet Slint sie als eine Zeile
+    out property <length> content-width: 420px - 2 * 32px;
 }
 
 // Eigene Farben statt Standard-Transparenzen: im hellen Modus braucht Sekundärtext deutlich mehr Kontrast.
@@ -125,6 +127,7 @@ export global Ferry {
     callback select-language(int);
     callback select-dark(bool);
     callback show-help();
+    callback show-about();
 }
 
 component FerryWindow inherits Window {
@@ -170,9 +173,118 @@ component FerryWindow inherits Window {
                 title: @tr("Manual");
                 activated => { Ferry.show-help(); }
             }
+            MenuItem {
+                title: @tr("About MediaFiles Ferry");
+                activated => { Ferry.show-about(); }
+            }
         }
     }
 
+}
+
+// Seiten des Hauptfensters
+export enum Page { home, compare, working, result, delivery }
+
+// Zuordnung eines Laufwerks: options[0] = "Choose…" (noch offen)
+export struct MapRow {
+    name: string,
+    options: [string],
+    selected: int,
+}
+
+// Ordner auf beiden Seiten: -1 offen, 0 zusammenführen, 1 umbenennen
+export struct ChoiceRow {
+    name: string,
+    choice: int,
+}
+
+// Umbrechender Text mit fester Breite (sonst ist die Fensterhöhe zu klein)
+component Para inherits Text {
+    width: Metrics.content-width - 12px;
+    wrap: word-wrap;
+    font-size: 12px;
+    color: Theme.muted;
+}
+
+// Scrollbereich für lange Seiten; wächst bis limit
+component ScrollArea inherits Rectangle {
+    in property <length> limit: 380px;
+    height: min(body.preferred-height, root.limit);
+    flick := Flickable {
+        content-height: body.preferred-height;
+        body := VerticalLayout {
+            x: 0;
+            width: flick.width;
+            spacing: Metrics.spacing;
+            @children
+        }
+    }
+    if body.preferred-height > root.height: Rectangle {
+        x: parent.width - self.width;
+        width: 3px;
+        height: max(24px, root.height * root.height / body.preferred-height);
+        y: -flick.content-y / (body.preferred-height - root.height) * (root.height - self.height);
+        border-radius: 1.5px;
+        background: Theme.line;
+    }
+}
+
+// Liste mit eigener Scrollfläche; wächst bis limit
+component LineList inherits Rectangle {
+    in property <[string]> lines;
+    in property <color> text-color: Theme.text;
+    in property <length> limit: 160px;
+    height: min(list.preferred-height, root.limit);
+    flick := Flickable {
+        content-height: list.preferred-height;
+        list := VerticalLayout {
+            x: 0;
+            width: flick.width - 10px;
+            spacing: 6px;
+            for l in root.lines: Text {
+                width: Metrics.content-width - 12px;
+                text: l;
+                font-size: 12px;
+                wrap: word-wrap;
+                color: root.text-color;
+            }
+        }
+    }
+    if list.preferred-height > root.height: Rectangle {
+        x: parent.width - self.width;
+        width: 3px;
+        height: max(20px, root.height * root.height / list.preferred-height);
+        y: -flick.content-y / (list.preferred-height - root.height) * (root.height - self.height);
+        border-radius: 1.5px;
+        background: Theme.line;
+    }
+}
+
+component MapList inherits VerticalLayout {
+    in property <[MapRow]> rows;
+    callback changed(int, int);
+    spacing: 8px;
+    for r[i] in root.rows: HorizontalLayout {
+        spacing: 10px;
+        Text {
+            text: r.name;
+            width: 150px;
+            overflow: elide;
+            vertical-alignment: center;
+            color: Theme.text;
+        }
+        Text {
+            text: "→";
+            vertical-alignment: center;
+            color: Theme.muted;
+        }
+        ComboBox {
+            horizontal-stretch: 1;
+            model: r.options;
+            current-index: r.selected;
+            selected => { root.changed(i, self.current-index); }
+        }
+    }
 }
 
 export component AppWindow inherits FerryWindow {
@@ -190,17 +302,66 @@ export component AppWindow inherits FerryWindow {
     in property <bool> has-manifest;
     in property <string> language: "en";
 
+    in property <Page> page: Page.home;
+    // Vergleichen
+    in property <string> remote-name;
+    in property <string> remote-date;
+    in property <[MapRow]> maps;
+    in property <[ChoiceRow]> collisions;
+    in property <int> copy-files;
+    in property <string> copy-size;
+    in property <[string]> tasks;
+    in property <bool> can-collect;
+    // Fortschritt: 0 sammeln, 1 prüfen, 2 einspielen
+    in property <int> work-kind;
+    property <string> work-title: root.work-kind == 0 ? @tr("COLLECTING FOR {}", root.remote-name)
+        : root.work-kind == 1 ? @tr("VERIFYING DELIVERY") : @tr("IMPORTING DELIVERY");
+    in property <string> work-text;
+    in property <float> work-value;
+    // Ergebnis: 0 gesammelt, 1 gesammelt mit Fehlern, 2 eingespielt, 3 eingespielt mit Problemen, 4 Prüfung fehlgeschlagen
+    in property <int> result-kind;
+    in property <string> result-path;
+    property <bool> result-ok: root.result-kind == 0 || root.result-kind == 2;
+    property <string> result-title: root.result-kind == 0 ? @tr("Delivery ready")
+        : root.result-kind == 1 ? @tr("Delivery ready – some files could not be copied")
+        : root.result-kind == 2 ? @tr("Delivery imported")
+        : root.result-kind == 3 ? @tr("Delivery imported with problems") : @tr("Delivery is incomplete or damaged – nothing was imported");
+    property <string> result-hint: root.result-kind <= 1 ? @tr("Give this folder to {} (e.g. on a drive) and import it there with “Verify & import”. Instructions for importing by hand are inside.", root.remote-name)
+        : root.result-kind == 4 ? @tr("Ask {} for a new delivery or copy the folder again.", root.delivery-from)
+        : @tr("Scan again so that the manifest is up to date.");
+    // Texte, die der Rust-Teil braucht
+    out property <string> txt-choose: @tr("Choose…");
+    out property <string> txt-skip: @tr("Don't send");
+    out property <string> txt-same-system: @tr("this manifest is from this system");
+    out property <string> txt-choose-target: @tr("Choose where to create the delivery folder");
+    out property <string> txt-choose-delivery: @tr("Choose the delivery folder");
+    in property <[string]> result-problems;
+    in property <[string]> result-tasks;
+    // Lieferung
+    in property <string> delivery-from;
+    in property <int> delivery-files;
+    in property <string> delivery-size;
+    in property <[MapRow]> delivery-maps;
+    in property <bool> can-import;
+
     callback scan();
     callback save-manifest();
     callback open-manifest();
     callback import-delivery();
+    callback back();
+    callback map-changed(int, int);
+    callback choice-changed(int, int);
+    callback collect();
+    callback delivery-map-changed(int, int);
+    callback start-import();
+    callback show-result();
 
     // animierte Punkte hinter "Scanning", damit man sieht, dass etwas läuft
     property <int> dot-count;
     property <string> dots: root.dot-count == 1 ? ".  " : root.dot-count == 2 ? ".. " : root.dot-count == 3 ? "..." : "   ";
     Timer {
         interval: 400ms;
-        running: root.scanning;
+        running: root.scanning || root.page == Page.working;
         triggered => { root.dot-count = Math.mod(root.dot-count + 1, 4); }
     }
 
@@ -219,97 +380,341 @@ export component AppWindow inherits FerryWindow {
 
         Headline { }
 
-        Section {
-            title: @tr("THIS SYSTEM");
-            Text {
-                text: root.system-name;
-                font-size: 15px;
-                font-weight: 600;
-                overflow: elide;
-                color: Theme.text;
-            }
-            if root.volumes.length == 0: Text {
-                text: @tr("No drive with “Avid MediaFiles/MXF” found.");
-                overflow: elide;
-                color: Theme.muted;
-            }
-            for v in root.volumes: HorizontalLayout {
-                spacing: 10px;
-                height: Metrics.line;
-                VerticalLayout {
-                    alignment: center;
-                    Rectangle {
-                        width: 8px;
-                        height: 8px;
-                        border-radius: 4px;
-                        background: v.online ? Theme.online : Theme.line;
-                    }
-                }
+        // ── Start ──────────────────────────────────────────────
+        if root.page == Page.home: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("THIS SYSTEM");
                 Text {
-                    text: v.name;
-                    horizontal-stretch: 1;
+                    text: root.system-name;
+                    font-size: 15px;
+                    font-weight: 600;
                     overflow: elide;
-                    vertical-alignment: center;
-                    color: v.online ? Theme.text : Theme.muted;
+                    color: Theme.text;
                 }
-                Text {
-                    text: v.files == "" ? @tr("not scanned yet") : @tr("{} files", v.files);
-                    vertical-alignment: center;
-                    color: v.files == "" ? Theme.faint : Theme.muted;
-                }
-            }
-            VerticalLayout {
-                StatusLine {
-                    text: root.scan-status;
+                if root.volumes.length == 0: Text {
+                    text: @tr("No drive with “Avid MediaFiles/MXF” found.");
+                    overflow: elide;
                     color: Theme.muted;
                 }
-                // feste Zeile, damit das Fenster nicht springt, wenn ein Hinweis erscheint
-                StatusLine {
-                    text: root.error != "" ? root.error : root.warnings > 0 && !root.scanning ? @tr("{n} warning" | "{n} warnings" % root.warnings) : "";
-                    color: root.error != "" ? Theme.error : Theme.warning;
+                for v in root.volumes: HorizontalLayout {
+                    spacing: 10px;
+                    height: Metrics.line;
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 4px;
+                            background: v.online ? Theme.online : Theme.line;
+                        }
+                    }
+                    Text {
+                        text: v.name;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                        vertical-alignment: center;
+                        color: v.online ? Theme.text : Theme.muted;
+                    }
+                    Text {
+                        text: v.files == "" ? @tr("not scanned yet") : @tr("{} files", v.files);
+                        vertical-alignment: center;
+                        color: v.files == "" ? Theme.faint : Theme.muted;
+                    }
+                }
+                VerticalLayout {
+                    StatusLine {
+                        text: root.scan-status;
+                        color: Theme.muted;
+                    }
+                    // feste Zeile, damit das Fenster nicht springt, wenn ein Hinweis erscheint
+                    StatusLine {
+                        text: root.error != "" ? root.error : root.warnings > 0 && !root.scanning ? @tr("{n} warning" | "{n} warnings" % root.warnings) : "";
+                        color: root.error != "" ? Theme.error : Theme.warning;
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+                    FerryButton {
+                        text: @tr("Scan");
+                        primary: true;
+                        enabled: !root.scanning && root.volumes.length > 0;
+                        clicked => { root.scan(); }
+                    }
+                    FerryButton {
+                        text: @tr("Save manifest…");
+                        enabled: root.has-manifest && !root.scanning;
+                        clicked => { root.save-manifest(); }
+                    }
                 }
             }
+
+            Divider { }
+
+            Section {
+                title: @tr("COMPARE");
+                Para {
+                    text: root.has-manifest ? @tr("Open the manifest of the other system.") : @tr("Scan this system first.");
+                    color: Theme.muted;
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    FerryButton {
+                        text: @tr("Open manifest…");
+                        enabled: root.has-manifest && !root.scanning;
+                        clicked => { root.open-manifest(); }
+                    }
+                }
+            }
+
+            Divider { }
+
+            Section {
+                title: @tr("RECEIVED A DELIVERY?");
+                HorizontalLayout {
+                    alignment: start;
+                    FerryButton {
+                        text: @tr("Verify & import…");
+                        enabled: !root.scanning;
+                        clicked => { root.import-delivery(); }
+                    }
+                }
+            }
+        }
+
+        // ── Vergleichen ────────────────────────────────────────
+        if root.page == Page.compare: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("COMPARE WITH");
+                Text {
+                    text: root.remote-name;
+                    font-size: 15px;
+                    font-weight: 600;
+                    overflow: elide;
+                    color: Theme.text;
+                }
+                Text {
+                    text: @tr("Manifest from {}", root.remote-date);
+                    font-size: 12px;
+                    color: Theme.muted;
+                }
+            }
+
+            ScrollArea {
+                if root.maps.length > 0: Section {
+                    title: @tr("ASSIGN DRIVES");
+                    Para {
+                        text: @tr("These drives have no drive with the same name on the other system.");
+                        color: Theme.muted;
+                    }
+                    MapList {
+                        rows: root.maps;
+                        changed(i, v) => { root.map-changed(i, v); }
+                    }
+                }
+
+                if root.collisions.length > 0: Section {
+                    title: @tr("FOLDERS ON BOTH SIDES");
+                    Para {
+                        text: @tr("These folders exist on both systems with files of their own.");
+                        color: Theme.muted;
+                    }
+                    for c[i] in root.collisions: VerticalLayout {
+                        spacing: 6px;
+                        Text {
+                            text: c.name;
+                            overflow: elide;
+                            color: Theme.text;
+                        }
+                        HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        FerryButton {
+                            text: @tr("Merge");
+                            primary: c.choice == 0;
+                            clicked => { root.choice-changed(i, 0); }
+                        }
+                        FerryButton {
+                            text: @tr("Rename");
+                            primary: c.choice == 1;
+                            clicked => { root.choice-changed(i, 1); }
+                        }
+                        }
+                    }
+                    Para {
+                        text: @tr("Merge: same folder, the database must be rebuilt. Rename: new folder with a unique name.");
+                        font-size: 11px;
+                        color: Theme.faint;
+                    }
+                }
+
+                Section {
+                    title: @tr("FOR {}", root.remote-name);
+                    Para {
+                        text: root.copy-files == 0 ? @tr("Nothing to collect – the other system has everything.")
+                            : @tr("{n} file to collect ({})" | "{n} files to collect ({})" % root.copy-files, root.copy-size);
+                        font-size: 13px;
+                        color: Theme.text;
+                    }
+                }
+
+                if root.tasks.length > 0: Section {
+                    title: @tr("TASKS");
+                    for t in root.tasks: Para {
+                        text: t;
+                        color: Theme.text;
+                    }
+                }
+            }
+
+            Divider { }
             HorizontalLayout {
                 spacing: 10px;
-                alignment: start;
                 FerryButton {
-                    text: @tr("Scan");
+                    text: @tr("Back");
+                    clicked => { root.back(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                FerryButton {
+                    text: @tr("Collect…");
                     primary: true;
-                    enabled: !root.scanning && root.volumes.length > 0;
-                    clicked => { root.scan(); }
-                }
-                FerryButton {
-                    text: @tr("Save manifest…");
-                    enabled: root.has-manifest && !root.scanning;
-                    clicked => { root.save-manifest(); }
+                    enabled: root.can-collect && root.copy-files > 0;
+                    clicked => { root.collect(); }
                 }
             }
         }
 
-        Divider { }
+        // ── Fortschritt ────────────────────────────────────────
+        if root.page == Page.working: Section {
+            title: root.work-title;
+            Rectangle {
+                height: 6px;
+                border-radius: 3px;
+                background: Theme.line;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * clamp(root.work-value, 0, 1);
+                    border-radius: 3px;
+                    background: Theme.primary;
+                }
+            }
+            StatusLine {
+                text: root.work-text;
+                color: Theme.muted;
+            }
+            Text {
+                text: @tr("Please wait{}", root.dots);
+                font-size: 12px;
+                color: Theme.faint;
+            }
+        }
 
-        Section {
-            title: @tr("COMPARE");
+        // ── Ergebnis ───────────────────────────────────────────
+        if root.page == Page.result: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("RESULT");
+                HorizontalLayout {
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 4px;
+                            background: root.result-ok ? Theme.online : Theme.error;
+                        }
+                    }
+                    Text {
+                        text: root.result-title;
+                        width: Metrics.content-width - 18px;
+                        font-size: 15px;
+                        font-weight: 600;
+                        wrap: word-wrap;
+                        color: Theme.text;
+                    }
+                }
+                if root.result-hint != "": Para {
+                    text: root.result-hint;
+                    color: Theme.muted;
+                }
+                if root.result-path != "": Para {
+                    text: root.result-path;
+                    font-size: 11px;
+                    color: Theme.faint;
+                }
+            }
+            if root.result-problems.length > 0: Section {
+                title: @tr("PROBLEMS");
+                LineList {
+                    lines: root.result-problems;
+                    text-color: Theme.error;
+                }
+            }
+            if root.result-tasks.length > 0: Section {
+                title: @tr("TASKS");
+                LineList { lines: root.result-tasks; }
+            }
+            Divider { }
             HorizontalLayout {
-                alignment: start;
+                spacing: 10px;
+                if root.result-path != "": FerryButton {
+                    text: @tr("Show in Finder");
+                    clicked => { root.show-result(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
                 FerryButton {
-                    text: @tr("Open manifest…");
-                    enabled: false;
-                    clicked => { root.open-manifest(); }
+                    text: @tr("Done");
+                    primary: true;
+                    clicked => { root.back(); }
                 }
             }
         }
 
-        Divider { }
-
-        Section {
-            title: @tr("RECEIVED A DELIVERY?");
+        // ── Lieferung einspielen ───────────────────────────────
+        if root.page == Page.delivery: VerticalLayout {
+            spacing: Metrics.spacing;
+            Section {
+                title: @tr("DELIVERY FROM");
+                Text {
+                    text: root.delivery-from;
+                    font-size: 15px;
+                    font-weight: 600;
+                    overflow: elide;
+                    color: Theme.text;
+                }
+                Text {
+                    text: @tr("{n} file ({})" | "{n} files ({})" % root.delivery-files, root.delivery-size);
+                    font-size: 12px;
+                    color: Theme.muted;
+                }
+            }
+            Section {
+                title: @tr("DRIVES");
+                MapList {
+                    rows: root.delivery-maps;
+                    changed(i, v) => { root.delivery-map-changed(i, v); }
+                }
+            }
+            Para {
+                text: @tr("Quit Media Composer before importing. Ferry first verifies every file and only imports if the delivery is complete. It never overwrites a media file.");
+                color: Theme.warning;
+            }
+            Divider { }
             HorizontalLayout {
-                alignment: start;
+                spacing: 10px;
                 FerryButton {
-                    text: @tr("Verify & import…");
-                    enabled: false;
-                    clicked => { root.import-delivery(); }
+                    text: @tr("Back");
+                    clicked => { root.back(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                FerryButton {
+                    text: @tr("Verify & import");
+                    primary: true;
+                    enabled: root.can-import;
+                    clicked => { root.start-import(); }
                 }
             }
         }
@@ -367,6 +772,65 @@ export component HelpWindow inherits FerryWindow {
                 y: -flick.content-y / (flick.content-height - flick.height) * (flick.height - self.height);
                 border-radius: 2px;
                 background: Theme.line;
+            }
+        }
+    }
+}
+
+// Rechtliche Hinweise nach GPL-3.0 §5d: Copyright, keine Gewährleistung, Lizenz, Quellcode.
+export component AboutWindow inherits FerryWindow {
+    title: @tr("About MediaFiles Ferry");
+    width: Metrics.window-width;
+    height: about.preferred-height;
+
+    in property <string> version;
+    callback open-source();
+    callback open-license();
+
+    about := VerticalLayout {
+        padding: Metrics.padding;
+        spacing: Metrics.spacing;
+        Headline { }
+        Section {
+            title: @tr("VERSION {}", root.version);
+            Text {
+                text: "© 2026 Moritz Poth";
+                color: Theme.muted;
+            }
+            Para {
+                text: @tr("MediaFiles Ferry is free software: you can redistribute and modify it under the terms of the GNU General Public License, version 3 or later.");
+                font-size: 13px;
+                color: Theme.text;
+            }
+            Para {
+                text: @tr("It comes with ABSOLUTELY NO WARRANTY – use at your own risk.");
+                font-size: 13px;
+                color: Theme.text;
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                alignment: start;
+                FerryButton {
+                    text: @tr("Source code");
+                    clicked => { root.open-source(); }
+                }
+                FerryButton {
+                    text: @tr("License");
+                    clicked => { root.open-license(); }
+                }
+            }
+        }
+        Section {
+            title: @tr("THIRD-PARTY");
+            Para {
+                text: @tr("JetBrains Mono font – SIL Open Font License 1.1. Slint UI toolkit – used under the GNU GPL v3.");
+                font-size: 11px;
+                color: Theme.faint;
+            }
+            Para {
+                text: @tr("Avid and Media Composer are trademarks of Avid Technology, Inc. MediaFiles Ferry is not affiliated with Avid.");
+                font-size: 11px;
+                color: Theme.faint;
             }
         }
     }
