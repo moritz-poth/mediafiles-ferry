@@ -306,6 +306,7 @@ export component AppWindow inherits FerryWindow {
     // Vergleichen
     in property <string> remote-name;
     in property <string> remote-date;
+    in property <bool> is-request;
     in property <[MapRow]> maps;
     in property <[ChoiceRow]> collisions;
     in property <int> copy-files;
@@ -487,7 +488,7 @@ export component AppWindow inherits FerryWindow {
         if root.page == Page.compare: VerticalLayout {
             spacing: Metrics.spacing;
             Section {
-                title: @tr("COMPARE WITH");
+                title: root.is-request ? @tr("REQUEST FROM") : @tr("COMPARE WITH");
                 Text {
                     text: root.remote-name;
                     font-size: 15px;
@@ -496,7 +497,7 @@ export component AppWindow inherits FerryWindow {
                     color: Theme.text;
                 }
                 Text {
-                    text: @tr("Manifest from {}", root.remote-date);
+                    text: root.is-request ? @tr("Request from {}", root.remote-date) : @tr("Manifest from {}", root.remote-date);
                     font-size: 12px;
                     color: Theme.muted;
                 }

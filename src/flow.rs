@@ -44,6 +44,8 @@ pub struct Compare {
     pub drives: Vec<Choice>,
     /// Ordner auf beiden Seiten: (Volume/Ordner, -1 offen / 0 zusammenführen / 1 umbenennen)
     pub collisions: Vec<(String, i32)>,
+    /// Anforderung aus MediaFiles Check: fester Plan, nichts zuzuordnen
+    pub request: Option<Plan>,
 }
 
 impl Compare {
@@ -63,9 +65,16 @@ impl Compare {
                 Choice { name: lv.name.clone(), options: remote_names.clone(), selected }
             })
             .collect();
-        let mut c = Compare { local, remote, drives, collisions: vec![] };
+        let mut c = Compare { local, remote, drives, collisions: vec![], request: None };
         c.refresh_collisions();
         c
+    }
+
+    /// Anforderung: die Gegenseite ist der Anfordernde, der Plan steht fest.
+    pub fn from_request(local: Manifest, req: &mediafiles_ferry::request::Request) -> Self {
+        let plan = mediafiles_ferry::request::plan(&local, req);
+        let remote = Manifest { system: req.system.clone(), created: req.created, ..Default::default() };
+        Compare { local, remote, drives: vec![], collisions: vec![], request: Some(plan) }
     }
 
     fn options(&self, with_renames: bool) -> Options {
@@ -83,6 +92,9 @@ impl Compare {
 
     /// Kollisionen ohne Umbenennungen bestimmen, damit Zeilen nach der Wahl „Umbenennen“ nicht verschwinden.
     pub fn refresh_collisions(&mut self) {
+        if self.request.is_some() {
+            return;
+        }
         let base = plan::plan(&self.local, &self.remote, &self.options(false), &yymmdd(now_secs()));
         let old = std::mem::take(&mut self.collisions);
         self.collisions = base.collisions.into_iter().map(|id| {
@@ -92,6 +104,9 @@ impl Compare {
     }
 
     pub fn plan(&self) -> Plan {
+        if let Some(p) = &self.request {
+            return p.clone();
+        }
         plan::plan(&self.local, &self.remote, &self.options(true), &yymmdd(now_secs()))
     }
 

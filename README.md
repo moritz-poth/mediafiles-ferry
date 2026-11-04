@@ -17,6 +17,8 @@ Ferry scans the MXF folders with checksums, compares two systems through a small
 3. **Compare & collect:** open the other system's manifest. Ferry shows what is missing over there and collects it into a delivery folder.
 4. **Verify & import** the delivery on the other system. Ferry verifies every file first and only imports a complete delivery.
 
+**Requests from [MediaFiles Check](https://github.com/moritz-poth/mediafiles-check):** MediaFiles Check lists the media files the bins of Avid projects need that a system is missing and saves them as a request. Open it with **Open manifest…** on the system that has the media: Ferry finds the files through the Avid databases and collects them into a normal delivery.
+
 ## Safe by design
 
 - never deletes media files, never overwrites an existing media file

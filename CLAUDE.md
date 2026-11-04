@@ -11,6 +11,8 @@ Rust core + command line `ferry`, Slint app `ferry-app`. macOS first (universal 
 - Compare names via `key()` (NFC + lowercase). Write admin files via `write_atomic`.
 - Manifest: `YYMMDD-HHMM_<computer>_Manifest.ferry` (JSON). Delivery: `ferry-delivery.json` (old name `ferry-lieferung.json` is still read). Unique folder names: `YYMMDD_<computer>_<folder>`.
 
+- Requests from MediaFiles Check (`src/request.rs`): a `.ferry` file with `format: "mediafiles-ferry-request"` lists media files by Avid mob ID (64 hex = first 32-byte ID of a msmFMID.pmr record). "Open manifest…" (and `ferry plan/collect`) recognise it; `request::plan` looks the IDs up in the pmr of every scanned folder (file must be in the last scan for size/hash), copies media only (never a database), adds RebuildDb tasks for the target folders and a NotFound task. The format is shared with MediaFiles Check `src/projects.rs` – change both together.
+
 ## UI
 - Fixed window width (420 px, `Metrics` in `ui/app.slint`), height from content. Wrapped text needs a fixed width (`Para`), otherwise Slint counts it as one line and the window is too short. Long pages use `ScrollArea`.
 - Pages in one window (`Page`: home, compare, working, result, delivery); flow state in `src/flow.rs` (`Compare`, `Incoming`, remembered `Mappings`).

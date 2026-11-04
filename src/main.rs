@@ -10,6 +10,7 @@ MediaFiles Ferry – command line
   ferry volumes                                  list drives with Avid media
   ferry scan [--full] [-o FILE] [DRIVE...]       scan and write a manifest (default: all drives)
   ferry plan MINE.ferry OTHER.ferry [options]              show what the other side is missing
+                                                           (OTHER may be a request from MediaFiles Check)
   ferry collect MINE.ferry OTHER.ferry TARGET [options]    collect the missing files into a delivery
   ferry verify DELIVERY                          verify a delivery
   ferry import DELIVERY [--map VOLUME=PATH]      import a delivery into the MXF folders
@@ -68,8 +69,17 @@ fn run(args: Vec<String>) -> Result<ExitCode, Box<dyn std::error::Error>> {
         }
         Some(cmd @ ("plan" | "collect")) => {
             let (Some(l), Some(r)) = (pos.get(1), pos.get(2)) else { return Err(USAGE.into()) };
-            let (local, remote) = (Manifest::load(l.as_ref())?, Manifest::load(r.as_ref())?);
-            let p = plan::plan(&local, &remote, &opts, &yymmdd(now_secs()));
+            let local = Manifest::load(l.as_ref())?;
+            // OTHER can also be a request from MediaFiles Check (files wanted by Avid mob ID)
+            let (remote, p) = if mediafiles_ferry::request::is_request(r.as_ref()) {
+                let req = mediafiles_ferry::request::Request::load(r.as_ref())?;
+                let remote = Manifest { system: req.system.clone(), ..Default::default() };
+                (remote, mediafiles_ferry::request::plan(&local, &req))
+            } else {
+                let remote = Manifest::load(r.as_ref())?;
+                let p = plan::plan(&local, &remote, &opts, &yymmdd(now_secs()));
+                (remote, p)
+            };
             print_plan(&p, &remote.system);
             if !p.unmapped.is_empty() {
                 let names: Vec<_> = remote.volumes.iter().map(|v| v.name.as_str()).collect();

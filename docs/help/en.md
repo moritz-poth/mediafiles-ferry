@@ -43,6 +43,15 @@ Then click **Save manifest…** and send the file to the other system. The file 
 
 Ferry copies every file with a checksum check into a new folder named like `261102-1830_Mac Studio_to_MacBook`. It also contains `Tasks.txt` with instructions for importing by hand. If collecting is interrupted, collecting again continues where it stopped.
 
+## Requests from MediaFiles Check
+
+MediaFiles Check finds media files the bins of Avid projects need but the system does not have, and saves them as a request (`…_Request.ferry`). On the system that has the media:
+
+1. Scan this system first, so that your manifest is up to date.
+2. Click **Open manifest…** and choose the request – Ferry recognises it by itself.
+3. Ferry looks up the requested files in the Avid databases of its drives and shows how many it found. Files it cannot find are listed in a task with the clips that use them.
+4. Click **Collect…**. The delivery is a normal one: import it on the requesting system with **Verify & import**. Only media files are sent, never a database – the task list says which folders need a new database there.
+
 ## Verify and import
 
 1. Quit Media Composer.

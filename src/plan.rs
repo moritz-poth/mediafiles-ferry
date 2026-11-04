@@ -32,6 +32,8 @@ pub enum Task {
     Rebalance { system: String, volume: String, folder: String, files: usize },
     Conflict { system: String, volume: String, folder: String, name: String },
     Duplicates { system: String, places: Vec<String>, files: usize },
+    /// requested files (MediaFiles Check) this system does not have; clips that use them
+    NotFound { system: String, files: usize, clips: Vec<String> },
 }
 
 impl Task {
@@ -55,6 +57,16 @@ impl Task {
                 true => format!("[{system}] {files} doppelte Dateien in: {}", places.join(", ")),
                 false => format!("[{system}] {files} duplicate files in: {}", places.join(", ")),
             },
+            Task::NotFound { system, files, clips } => {
+                let mut shown = clips.iter().take(10).cloned().collect::<Vec<_>>().join(", ");
+                if clips.len() > 10 {
+                    shown += &if de { format!(" und {} weitere", clips.len() - 10) } else { format!(" and {} more", clips.len() - 10) };
+                }
+                match de {
+                    true => format!("[{system}] {files} angeforderte Dateien hier nicht gefunden (Scan aktuell?) – Clips: {shown}"),
+                    false => format!("[{system}] {files} requested files not found here (scan up to date?) – clips: {shown}"),
+                }
+            }
         }
     }
 }

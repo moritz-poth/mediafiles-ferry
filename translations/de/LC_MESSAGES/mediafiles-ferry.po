@@ -252,3 +252,9 @@ msgstr "Schrift JetBrains Mono – SIL Open Font License 1.1. Oberfläche Slint 
 
 msgid "Avid and Media Composer are trademarks of Avid Technology, Inc. MediaFiles Ferry is not affiliated with Avid."
 msgstr "Avid und Media Composer sind Marken von Avid Technology, Inc. MediaFiles Ferry steht in keiner Verbindung zu Avid."
+
+msgid "REQUEST FROM"
+msgstr "ANFORDERUNG VON"
+
+msgid "Request from {}"
+msgstr "Anforderung vom {}"

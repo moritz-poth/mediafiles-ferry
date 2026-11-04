@@ -1,6 +1,7 @@
 //! MediaFiles Ferry: gleicht Avid-MXF-Bestände zweier Systeme über Manifest-Dateien ab.
 pub mod collect;
 pub mod plan;
+pub mod request;
 pub mod scan;
 
 use serde::{Deserialize, Serialize};

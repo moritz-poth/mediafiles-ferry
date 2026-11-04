@@ -403,6 +403,22 @@ fn main() -> Result<(), slint::PlatformError> {
         move || {
             let app = weak.unwrap();
             let Some(file) = rfd::FileDialog::new().add_filter("MediaFiles Ferry Manifest", &[MANIFEST_EXT]).pick_file() else { return };
+            // a request from MediaFiles Check: files wanted by their Avid IDs
+            if mediafiles_ferry::request::is_request(&file) {
+                let loaded = Manifest::load(&manifest_path()).and_then(|l| mediafiles_ferry::request::Request::load(&file).map(|r| (l, r)));
+                match loaded {
+                    Ok((local, req)) => {
+                        let c = Compare::from_request(local, &req);
+                        app.set_error("".into());
+                        app.set_is_request(true);
+                        show_compare(&app, &c);
+                        *compare.borrow_mut() = Some(c);
+                    }
+                    Err(e) => app.set_error(shorten(&e.to_string(), LINE_CHARS).into()),
+                }
+                return;
+            }
+            app.set_is_request(false);
             let loaded = Manifest::load(&manifest_path()).and_then(|l| Manifest::load(&file).map(|r| (l, r)));
             match loaded {
                 Ok((local, remote)) if key(&local.system) == key(&remote.system) => {
