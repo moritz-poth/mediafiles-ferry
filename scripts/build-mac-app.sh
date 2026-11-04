@@ -22,6 +22,9 @@ iconutil -c icns assets/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns
 # license texts ship with the app (GPL for Ferry, OFL for the embedded font)
 cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
 cp ui/fonts/OFL.txt "$APP/Contents/Resources/OFL.txt"
+# screenshots of the manual (docs/help/images/<lang>/…)
+mkdir -p "$APP/Contents/Resources/help"
+cp -R docs/help/images "$APP/Contents/Resources/help/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

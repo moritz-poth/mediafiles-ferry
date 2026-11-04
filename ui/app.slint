@@ -15,6 +15,8 @@ export struct VolumeRow {
 export struct HelpBlock {
     heading: string,
     body: styled-text,
+    // screenshot (2x pixels), shown at half its pixel size, never wider than the text
+    picture: image,
 }
 
 // Feste Breite für alle Sprachen; lange Namen kürzt der Rust-Teil in der Mitte ("Anfang…Ende").
@@ -893,7 +895,23 @@ export component HelpWindow inherits FerryWindow {
                             wrap: word-wrap;
                             color: Theme.text;
                         }
-                        if b.heading == "": StyledText {
+                        // framed: the screenshots are dark and would blend into the page
+                        if b.picture.width > 0: Rectangle {
+                            width: min(content.width, b.picture.width * 0.5px + 2px);
+                            height: (self.width - 2px) * b.picture.height / b.picture.width + 2px;
+                            border-width: 1px;
+                            border-color: Theme.line;
+                            border-radius: 6px;
+                            clip: true;
+                            Image {
+                                x: 1px;
+                                y: 1px;
+                                width: parent.width - 2px;
+                                height: parent.height - 2px;
+                                source: b.picture;
+                            }
+                        }
+                        if b.heading == "" && b.picture.width == 0: StyledText {
                             text: b.body;
                             default-color: Theme.text;
                             link-color: Theme.text;

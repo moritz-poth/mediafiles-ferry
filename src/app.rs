@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -136,6 +136,14 @@ fn refresh(app: &AppWindow, lang: &str, skip: &[String]) {
 
 /// Zerlegt die Anleitung in Blöcke: "# " = Untertitel, "## " = Abschnittsüberschrift, jeder Absatz ein eigener Block
 /// (StyledText kennt keine Überschriften und keinen Absatzabstand). Backticks fallen weg, damit alles in der App-Schrift bleibt.
+/// A picture of the manual (`![…](images/<lang>/x.png)`, path relative to docs/help): in the app bundle under
+/// Resources/help, when run from the repo in docs/help.
+fn help_picture(path: &str) -> slint::Image {
+    let bundled = std::env::current_exe().ok().and_then(|e| Some(e.parent()?.parent()?.join("Resources/help").join(path)));
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/help").join(path);
+    bundled.filter(|p| p.is_file()).or(Some(repo)).and_then(|p| slint::Image::load_from_path(&p).ok()).unwrap_or_default()
+}
+
 fn help_blocks(markdown: &str) -> (String, Vec<HelpBlock>) {
     let mut subtitle = String::new();
     let mut blocks = vec![];
@@ -145,7 +153,7 @@ fn help_blocks(markdown: &str) -> (String, Vec<HelpBlock>) {
         let text = paragraph.trim().replace('`', "").replace('<', "‹").replace('>', "›");
         if !text.is_empty() {
             let body = slint::StyledText::from_markdown(&text).unwrap_or_else(|_| slint::StyledText::from_plain_text(&text));
-            blocks.push(HelpBlock { heading: "".into(), body });
+            blocks.push(HelpBlock { heading: "".into(), body, picture: Default::default() });
         }
         paragraph.clear();
     };
@@ -154,7 +162,10 @@ fn help_blocks(markdown: &str) -> (String, Vec<HelpBlock>) {
             subtitle = t.to_uppercase();
         } else if let Some(h) = line.strip_prefix("## ") {
             flush(&mut paragraph, &mut blocks);
-            blocks.push(HelpBlock { heading: h.into(), body: Default::default() });
+            blocks.push(HelpBlock { heading: h.into(), body: Default::default(), picture: Default::default() });
+        } else if let Some(path) = line.trim().strip_prefix("![").and_then(|l| l.split_once("](")).and_then(|(_, p)| p.strip_suffix(')')) {
+            flush(&mut paragraph, &mut blocks);
+            blocks.push(HelpBlock { heading: "".into(), body: Default::default(), picture: help_picture(path) });
         } else if line.trim().is_empty() {
             flush(&mut paragraph, &mut blocks);
         } else {
@@ -928,7 +939,15 @@ mod tests {
             assert!(!subtitle.is_empty(), "{}", l.0);
             assert!(blocks.iter().filter(|b| !b.heading.is_empty()).count() > 5, "{}", l.0);
             assert!(!blocks[0].heading.is_empty(), "{}: beginnt mit einer Überschrift", l.0);
+            // every picture the manual names exists
+            for line in l.3.lines().filter(|l| l.starts_with("![")) {
+                let path = line.split_once("](").unwrap().1.trim_end_matches(')');
+                assert!(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/help").join(path).is_file(), "{}: {path}", l.0);
+            }
         }
+        let (_, blocks) = super::help_blocks("## A\n\ntext\n\n![x](nowhere.png)\n\nmore");
+        assert_eq!(blocks.len(), 4);
+        assert_eq!(blocks[2].picture.size().width, 0); // missing file: empty picture, not a crash
     }
 
     #[test]

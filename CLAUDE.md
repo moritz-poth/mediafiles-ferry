@@ -27,7 +27,7 @@ Rust core + command line `ferry`, Slint app `ferry-app`. macOS first (universal 
 `assets/AppIcon.iconset` is designed per size on Apple's grid (16 px → 14 px plate …); sources `assets/MediaFilesFerry_*.svg`. Don't scale down from 1024.
 
 ## Docs
-Update `docs/help/*.md` (in-app manual) and README with every feature change.
+Update `docs/help/*.md` (in-app manual) and README with every feature change. The manual shows pictures: a line `![alt](images/<lang>/x.png)` (path relative to docs/help, same on GitHub) becomes a framed picture block (`help_picture`; in the bundle under Resources/help, copied by the build script; 2x PNGs shown at half size). README pictures: `assets/screenshots/<name>-dark|light.png` in `<picture>`. Screenshots were made with a temporary hook (demo data, `window.take_snapshot()`, cut at the divider lines without headline and side padding), then removed – redo the same way when the UI changes; no real drive or system names.
 
 ## Build / test
 `cargo test`, `scripts/build-mac-app.sh` → universal `dist/MediaFiles Ferry.app` + zip (ad-hoc signed). Release: bump `version` in Cargo.toml and `BUILD` in the build script.

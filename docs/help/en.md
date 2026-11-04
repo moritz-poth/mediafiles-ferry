@@ -27,6 +27,8 @@ Folder names can be anything, e.g. `1`, `Avid8.1` or `Mac Studio.1`.
 
 Click **Scan**. Ferry finds all connected drives with `Avid MediaFiles/MXF` and computes a checksum for every MXF file. The switch next to a drive decides whether it is scanned – switch off e.g. backup drives that should not be in the manifest. New drives are switched on; Ferry remembers the choice.
 
+![This system: drives with their switches](images/en/scan.png)
+
 - **The first scan takes a while**, because every file is read once.
 - **Later scans are fast:** Ferry remembers the checksums and only reads new or changed files.
 - If the app is closed or crashes during a scan, nothing is lost – the next scan continues where it stopped.
@@ -40,6 +42,8 @@ Then click **Save manifest…** and send the file to the other system. The file 
 3. **Assign drives:** drives without a drive of the same name on the other side need a target – or **Don't send**. Ferry remembers your choice for this system.
 4. **Folders on both sides:** choose **Merge** or **Rename** for every folder (see below).
 5. Check the number of files and the tasks, then click **Collect…** and choose where the delivery folder should be created – e.g. on an external drive.
+
+![Compare with another system](images/en/compare.png)
 
 Ferry copies every file with a checksum check into a new folder named like `261102-1830_Mac Studio_to_MacBook`. It also contains `Tasks.txt` with instructions for importing by hand. If collecting is interrupted, collecting again continues where it stopped.
 
@@ -59,6 +63,8 @@ MediaFiles Check finds media files the bins of Avid projects need but the system
 3. Check the drives: every drive of the delivery needs a drive on this system. Drives with the same name are assigned automatically.
 4. Click **Verify & import**. Ferry first verifies every file of the delivery. Only if everything is complete and undamaged does it import – it only adds files and never overwrites a media file. Replaced databases are kept in `Avid MediaFiles/Ferry-Backup/`.
 5. Scan again afterwards, so that your manifest is up to date.
+
+![Verify and import a delivery](images/en/import.png)
 
 ## When is something copied?
 
@@ -85,6 +91,8 @@ Avid creates folders like `1` on every system. If such a folder exists on both s
 
 Everything Ferry must not do itself ends up in the task list (also in `Tasks.txt` of each delivery). The system on which the task has to be done is shown in brackets.
 
+![Delivery ready, with tasks](images/en/result.png)
+
 - **Rebuild database** – the folder contains files the database does not know. Let Media Composer rebuild it.
 - **Rebalance folder** – the folder has more than 5000 files; Avid gets slow. Spread the files over several folders.
 - **Same name, different content** – two different files share a name. Check which one is right.
@@ -101,6 +109,8 @@ Everything Ferry must not do itself ends up in the task list (also in `Tasks.txt
 ## Settings
 
 **MediaFiles Ferry → Settings…** (⌘,) sets the appearance (light or dark) and the language. **MediaFiles Ferry → About MediaFiles Ferry** shows the version and the license.
+
+![Settings](images/en/settings.png)
 
 ## Updates
 

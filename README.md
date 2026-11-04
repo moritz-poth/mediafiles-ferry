@@ -10,6 +10,8 @@ Ferry scans the MXF folders with checksums, compares two systems through a small
 
 Updates install from within the app (Settings… → Check for updates, or the notice at the top of the window).
 
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/home-dark.png"><img src="assets/screenshots/home-light.png" width="420" alt="Start page: this system with its drives, compare, received a delivery"></picture></p>
+
 > **Beta.** MediaFiles Ferry 1.0 is a beta. Please report problems in [Issues](../../issues).
 
 ## How it works
@@ -18,6 +20,8 @@ Updates install from within the app (Settings… → Check for updates, or the n
 2. **Exchange** the manifests, e.g. by e-mail or USB stick.
 3. **Compare & collect:** open the other system's manifest. Ferry shows what is missing over there and collects it into a delivery folder.
 4. **Verify & import** the delivery on the other system. Ferry verifies every file first and only imports a complete delivery.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/compare-dark.png"><img src="assets/screenshots/compare-light.png" width="420" alt="Compare with another system"></picture>&nbsp;&nbsp;<picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/result-dark.png"><img src="assets/screenshots/result-light.png" width="420" alt="Delivery ready"></picture></p>
 
 **Requests from [MediaFiles Check](https://github.com/moritz-poth/mediafiles-check):** MediaFiles Check lists the media files the bins of Avid projects need that a system is missing and saves them as a request. Open it with **Open manifest…** on the system that has the media: Ferry finds the files through the Avid databases and collects them into a normal delivery.
 

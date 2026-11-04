@@ -27,6 +27,8 @@ Ordnernamen sind beliebig, z. B. `1`, `Avid8.1` oder `Mac Studio.1`.
 
 Auf **Scannen** klicken. Ferry findet alle angeschlossenen Laufwerke mit `Avid MediaFiles/MXF` und berechnet für jede MXF-Datei eine Prüfsumme. Der Schalter neben einem Laufwerk bestimmt, ob es gescannt wird – schalte z. B. Backup-Laufwerke aus, die nicht ins Manifest sollen. Neue Laufwerke sind eingeschaltet; Ferry merkt sich die Auswahl.
 
+![Dieses System: Laufwerke mit Schaltern](images/de/scan.png)
+
 - **Der erste Scan dauert**, weil jede Datei einmal gelesen wird.
 - **Weitere Scans sind schnell:** Ferry merkt sich die Prüfsummen und liest nur neue oder veränderte Dateien.
 - Wird die App während eines Scans geschlossen oder stürzt sie ab, geht nichts verloren – der nächste Scan macht dort weiter.
@@ -40,6 +42,8 @@ Danach auf **Manifest sichern…** klicken und die Datei an das andere System sc
 3. **Laufwerke zuordnen:** Laufwerke ohne gleichnamiges Gegenstück brauchen ein Ziel – oder **Nicht senden**. Ferry merkt sich die Wahl für dieses System.
 4. **Ordner auf beiden Seiten:** Für jeden Ordner **Zusammenführen** oder **Umbenennen** wählen (siehe unten).
 5. Anzahl der Dateien und Aufgaben prüfen, dann auf **Sammeln…** klicken und wählen, wo der Lieferordner entstehen soll – z. B. auf einer externen Festplatte.
+
+![Mit einem anderen System vergleichen](images/de/compare.png)
 
 Ferry kopiert jede Datei mit Prüfsummen-Kontrolle in einen neuen Ordner wie `261102-1830_Mac Studio_to_MacBook`. Darin liegt auch `Aufgaben.txt` mit einer Anleitung zum Einspielen von Hand. Wird das Sammeln unterbrochen, macht ein erneutes Sammeln dort weiter.
 
@@ -59,6 +63,8 @@ MediaFiles Check findet Mediendateien, die die Bins von Avid-Projekten brauchen,
 3. Laufwerke prüfen: Jedes Laufwerk der Lieferung braucht ein Laufwerk auf diesem System. Gleichnamige werden automatisch zugeordnet.
 4. Auf **Prüfen & einspielen** klicken. Ferry prüft zuerst jede Datei der Lieferung. Nur wenn alles vollständig und unbeschädigt ist, wird eingespielt – Ferry fügt nur hinzu und überschreibt nie eine Mediendatei. Ersetzte Datenbanken landen in `Avid MediaFiles/Ferry-Backup/`.
 5. Danach neu scannen, damit das Manifest aktuell ist.
+
+![Lieferung prüfen und einspielen](images/de/import.png)
 
 ## Wann wird was kopiert?
 
@@ -85,6 +91,8 @@ Avid legt auf jedem System Ordner wie `1` an. Gibt es einen solchen Ordner auf b
 
 Was Ferry nicht selbst erledigen darf, landet in der Aufgabenliste (auch in `Aufgaben.txt` jeder Lieferung). In eckigen Klammern steht das System, auf dem die Aufgabe zu erledigen ist.
 
+![Lieferung fertig, mit Aufgaben](images/de/result.png)
+
 - **Datenbank neu schreiben** – im Ordner liegen Dateien, die die Datenbank nicht kennt. In Media Composer neu aufbauen lassen.
 - **Ordner aufteilen (rebalancen)** – der Ordner hat mehr als 5000 Dateien; Avid wird langsam. Dateien auf mehrere Ordner verteilen.
 - **Gleicher Name, anderer Inhalt** – zwei verschiedene Dateien heißen gleich. Prüfen, welche richtig ist.
@@ -101,6 +109,8 @@ Was Ferry nicht selbst erledigen darf, landet in der Aufgabenliste (auch in `Auf
 ## Einstellungen
 
 **MediaFiles Ferry → Einstellungen…** (⌘,) stellt die Darstellung (hell oder dunkel) und die Sprache ein. **MediaFiles Ferry → Über MediaFiles Ferry** zeigt Version und Lizenz.
+
+![Einstellungen](images/de/settings.png)
 
 ## Updates
 
