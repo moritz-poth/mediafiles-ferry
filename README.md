@@ -6,7 +6,9 @@ Keeps the Avid media files (`Avid MediaFiles/MXF`) of several edit systems in sy
 
 Ferry scans the MXF folders with checksums, compares two systems through a small manifest file, collects the missing files into a delivery folder and safely imports that folder on the other system. It respects the Avid databases (`msmFMID.pmr`, `msmMMOB.mdb`) and lists everything that has to be done by hand in a task list.
 
-*Deutsch: Die App gibt es auch auf Deutsch – Menü Settings → Language.*
+*Deutsch: Die App gibt es auch auf Deutsch – MediaFiles Ferry → Settings… → Language.*
+
+Updates install from within the app (Settings… → Check for updates, or the notice at the top of the window).
 
 > **Beta.** MediaFiles Ferry 1.0 is a beta. Please report problems in [Issues](../../issues).
 

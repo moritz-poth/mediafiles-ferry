@@ -1,17 +1,18 @@
 //! Grafische Oberfläche: Scannen, Vergleichen und Sammeln, Lieferungen prüfen und einspielen.
-//! Sprache und Darstellung im Menü Settings.
+//! Sprache, Darstellung und Updates im Fenster Settings (App-Menü).
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod flow;
 
 use flow::{Choice, Compare, Incoming, Mappings};
-use mediafiles_ferry::{MANIFEST_EXT, Manifest, collect, key, local_time, manifest_file_name, scan, write_atomic};
+use mediafiles_ferry::{MANIFEST_EXT, Manifest, UPDATE_APP, collect, key, local_time, manifest_file_name, scan, update, write_atomic};
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 slint::include_modules!();
@@ -33,11 +34,40 @@ const TITLE_CHARS: usize = 38;
 struct Settings {
     language: String,
     dark: bool,
+    /// connected drives switched off for scanning (`key` of the name); new drives are on
+    skip: Vec<String>,
+    /// not saved; shared with the threads that check and install
+    #[serde(skip)]
+    update: Arc<Mutex<Update>>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { language: "en".into(), dark: true }
+        Self { language: "en".into(), dark: true, skip: vec![], update: Arc::default() }
+    }
+}
+
+/// Update state as the windows show it (Ferry.update-*).
+#[derive(Default)]
+struct Update {
+    available: Option<update::Release>,
+    /// 0 nothing, 1 checking, 2 up to date, 3 installing, 4 failed
+    state: i32,
+    /// with state 4: 0 check, 1 download, 2 damaged, 3 replace, 4 restart
+    error: i32,
+    details: String,
+}
+
+impl Update {
+    fn failed(&mut self, e: update::Error) {
+        self.state = 4;
+        (self.error, self.details) = match e {
+            update::Error::Check => (0, String::new()),
+            update::Error::Download => (1, String::new()),
+            update::Error::Damaged => (2, String::new()),
+            update::Error::Replace(d) => (3, d),
+            update::Error::Restart => (4, String::new()),
+        };
     }
 }
 
@@ -83,8 +113,8 @@ fn group_digits(n: usize, lang: &str) -> String {
     out
 }
 
-/// Laufwerksliste: angeschlossene Laufwerke plus die aus dem letzten Scan, die gerade fehlen.
-fn refresh(app: &AppWindow, lang: &str) {
+/// Laufwerksliste: angeschlossene Laufwerke (mit Schalter fürs Scannen) plus die aus dem letzten Scan, die gerade fehlen.
+fn refresh(app: &AppWindow, lang: &str, skip: &[String]) {
     let manifest = Manifest::load(&manifest_path()).ok();
     let scanned = |name: &str| {
         manifest.as_ref().and_then(|m| m.volumes.iter().find(|v| key(&v.name) == key(name))).map(|v| v.folders.iter().map(|f| f.files.len()).sum::<usize>())
@@ -96,8 +126,9 @@ fn refresh(app: &AppWindow, lang: &str) {
         .iter()
         .map(|n| (n, true))
         .chain(offline.map(|n| (n, false)))
-        .map(|(n, online)| VolumeRow { name: shorten(n, NAME_CHARS).into(), files: files(scanned(n)), online })
+        .map(|(n, online)| VolumeRow { name: shorten(n, NAME_CHARS).into(), files: files(scanned(n)), online, selected: online && !skip.contains(&key(n)) })
         .collect();
+    app.set_selected_count(rows.iter().filter(|r| r.selected).count() as i32);
     app.set_volumes(ModelRc::new(VecModel::from(rows)));
     app.set_has_manifest(manifest.is_some());
     app.set_minutes_since_scan(minutes_since_scan());
@@ -140,26 +171,127 @@ fn update_help(help: &HelpWindow, s: &Settings) {
     let (subtitle, blocks) = help_blocks(markdown);
     help.set_subtitle(subtitle.into());
     help.set_blocks(ModelRc::new(VecModel::from(blocks)));
-    help.global::<Ferry>().set_dark(s.dark);
-    let (languages, appearance) = menu_models(s);
-    help.global::<Ferry>().set_languages(languages);
-    help.global::<Ferry>().set_appearance(appearance);
+    apply(&help.global::<Ferry>(), s);
 }
 
 fn current_language(app: &AppWindow) -> String {
     app.get_language().to_string()
 }
 
-/// Setzt die Menü-Modelle neu: neue Einträge bekommen frische Häkchen (ein Klick hakt sonst nur den geklickten Eintrag um).
-fn menu_models(s: &Settings) -> (ModelRc<MenuChoice>, ModelRc<bool>) {
-    let languages: Vec<MenuChoice> = LANGUAGES.iter().map(|l| MenuChoice { title: l.1.into(), checked: l.0 == s.language }).collect();
-    (ModelRc::new(VecModel::from(languages)), ModelRc::new(VecModel::from(vec![s.dark, !s.dark])))
+/// Settings and update state into one window (every window has its own `Ferry` global).
+fn apply(ferry: &Ferry, s: &Settings) {
+    let names: Vec<slint::SharedString> = LANGUAGES.iter().map(|l| l.1.into()).collect();
+    ferry.set_language_names(ModelRc::new(VecModel::from(names)));
+    ferry.set_language_index(LANGUAGES.iter().position(|l| l.0 == s.language).unwrap_or(0) as i32);
+    ferry.set_dark(s.dark);
+    let u = s.update.lock().unwrap();
+    ferry.set_version(env!("CARGO_PKG_VERSION").into());
+    ferry.set_update_version(u.available.as_ref().map(|r| r.tag.trim_start_matches('v').to_string()).unwrap_or_default().into());
+    ferry.set_update_state(u.state);
+    ferry.set_update_error(u.error);
+    ferry.set_update_details(u.details.clone().into());
 }
 
-fn set_menus(app: &AppWindow, s: &Settings) {
-    let (languages, appearance) = menu_models(s);
-    app.global::<Ferry>().set_languages(languages);
-    app.global::<Ferry>().set_appearance(appearance);
+type Win<T> = Rc<RefCell<Option<T>>>;
+
+/// The windows besides the main one, created when first opened.
+#[derive(Clone, Default)]
+struct Others {
+    about: Win<AboutWindow>,
+    help: Win<HelpWindow>,
+    settings: Win<SettingsWindow>,
+}
+
+/// Language, appearance or update state changed: every open window follows.
+fn apply_all(app: &AppWindow, others: &Others, s: &Settings) {
+    apply(&app.global::<Ferry>(), s);
+    others.about.borrow().iter().for_each(|a| apply(&a.global::<Ferry>(), s));
+    others.settings.borrow().iter().for_each(|w| apply(&w.global::<Ferry>(), s));
+    others.help.borrow().iter().for_each(|h| update_help(h, s));
+    #[cfg(target_os = "macos")]
+    {
+        // Slint rebuilds the menu after a language change; add the item back once that is done
+        let title = app.get_txt_settings_menu().to_string();
+        slint::Timer::single_shot(Duration::from_millis(150), move || mac_menu::set_settings_title(&title));
+    }
+}
+
+/// Menu and buttons of a second window (manual, About, settings) forward to the main window.
+fn forward(ferry: &Ferry, weak: &slint::Weak<AppWindow>) {
+    let w = weak.clone();
+    ferry.on_select_language(move |i| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_language(i)));
+    let w = weak.clone();
+    ferry.on_select_dark(move |d| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_dark(d)));
+    let w = weak.clone();
+    ferry.on_show_help(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_help()));
+    let w = weak.clone();
+    ferry.on_show_about(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_about()));
+    let w = weak.clone();
+    ferry.on_show_settings(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_settings()));
+    let w = weak.clone();
+    ferry.on_check_update(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_check_update()));
+    let w = weak.clone();
+    ferry.on_install_update(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_install_update()));
+    let w = weak.clone();
+    ferry.on_show_release(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_release()));
+}
+
+/// Asks GitHub for a newer version; `manual` (Settings button) also reports "up to date" and errors.
+fn check_for_update(app: &AppWindow, s: &Settings, manual: bool) {
+    {
+        let mut u = s.update.lock().unwrap();
+        if u.state == 1 || u.state == 3 {
+            return;
+        }
+        if manual {
+            u.state = 1;
+        }
+    }
+    app.global::<Ferry>().invoke_refresh_update();
+    let (weak, update) = (app.as_weak(), s.update.clone());
+    std::thread::spawn(move || {
+        let result = update::check(&UPDATE_APP, env!("CARGO_PKG_VERSION"));
+        {
+            let mut u = update.lock().unwrap();
+            if u.state == 3 {
+                return;
+            }
+            match result {
+                Ok(r) => {
+                    let found = r.is_some();
+                    u.available = r;
+                    if manual {
+                        u.state = if found { 0 } else { 2 };
+                    }
+                }
+                Err(e) if manual => u.failed(e),
+                Err(_) => {}
+            }
+        }
+        let _ = slint::invoke_from_event_loop(move || weak.upgrade().iter().for_each(|a| a.global::<Ferry>().invoke_refresh_update()));
+    });
+}
+
+/// Downloads, verifies and swaps in the new version, then quits; the new version starts by itself.
+fn install_update(app: &AppWindow, s: &Settings) {
+    let release = {
+        let mut u = s.update.lock().unwrap();
+        let Some(r) = u.available.clone().filter(|_| u.state != 3) else { return };
+        u.state = 3;
+        r
+    };
+    app.global::<Ferry>().invoke_refresh_update();
+    let (weak, update) = (app.as_weak(), s.update.clone());
+    std::thread::spawn(move || {
+        if let Err(e) = update::download(&release, &UPDATE_APP).and_then(|new| update::swap_and_restart(&new)) {
+            update.lock().unwrap().failed(e);
+            let _ = slint::invoke_from_event_loop(move || weak.upgrade().iter().for_each(|a| a.global::<Ferry>().invoke_refresh_update()));
+            return;
+        }
+        let _ = slint::invoke_from_event_loop(|| {
+            let _ = slint::quit_event_loop();
+        });
+    });
 }
 
 fn map_rows(app: &AppWindow, drives: &[Choice], with_skip: bool) -> ModelRc<MapRow> {
@@ -237,21 +369,149 @@ fn open_url(target: &str) {
     let _ = std::process::Command::new("open").arg(target).spawn();
 }
 
+/// Redraw soon after a size change: Slint on macOS paints a window that grew only up to its old size.
+fn repaint_soon<T: ComponentHandle + 'static>(c: &T) {
+    for ms in [50, 200, 600, 1500] {
+        let weak = c.as_weak();
+        slint::Timer::single_shot(Duration::from_millis(ms), move || weak.upgrade().into_iter().for_each(|c| c.window().request_redraw()));
+    }
+}
+
+/// Every window grows with its content: redraw after each size change, or the new area stays unpainted.
+macro_rules! repaint_on_resize {
+    ($w:expr) => {{
+        let weak = $w.as_weak();
+        $w.global::<Ferry>().on_resized(move || weak.upgrade().iter().for_each(repaint_soon));
+    }};
+}
+
+#[cfg(target_os = "macos")]
+mod mac_menu {
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyClass, AnyObject, Imp, Sel};
+    use objc2::{class, msg_send, sel};
+    use std::cell::RefCell;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    type Handler = RefCell<Option<Box<dyn Fn()>>>;
+    thread_local! {
+        static ABOUT: Handler = RefCell::new(None);
+        static SETTINGS: Handler = RefCell::new(None);
+        static TITLE: RefCell<String> = RefCell::new("Settings…".into());
+    }
+    static ORIGINAL_SET_MAIN_MENU: AtomicUsize = AtomicUsize::new(0);
+    type ObjFn = extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject);
+
+    extern "C-unwind" fn about(_: *mut AnyObject, _: Sel, _: *mut AnyObject) {
+        ABOUT.with(|h| h.borrow().iter().for_each(|f| f()));
+    }
+
+    extern "C-unwind" fn settings(_: *mut AnyObject, _: Sel, _: *mut AnyObject) {
+        SETTINGS.with(|h| h.borrow().iter().for_each(|f| f()));
+    }
+
+    extern "C-unwind" fn set_main_menu(app: *mut AnyObject, sel: Sel, menu: *mut AnyObject) {
+        let original = ORIGINAL_SET_MAIN_MENU.load(Ordering::Relaxed);
+        if original != 0 {
+            let original: ObjFn = unsafe { std::mem::transmute(original) };
+            original(app, sel, menu);
+        }
+        ensure();
+    }
+
+    fn ns_string(s: &str) -> Retained<AnyObject> {
+        let c = std::ffi::CString::new(s).unwrap_or_default();
+        unsafe { msg_send![class!(NSString), stringWithUTF8String: c.as_ptr()] }
+    }
+
+    /// Adds "Settings…" to the app menu if it is missing and keeps its title in the current language.
+    pub fn ensure() {
+        unsafe {
+            let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let main: *mut AnyObject = msg_send![app, mainMenu];
+            if main.is_null() {
+                return;
+            }
+            let count: isize = msg_send![main, numberOfItems];
+            if count == 0 {
+                return;
+            }
+            let first: *mut AnyObject = msg_send![main, itemAtIndex: 0isize];
+            let app_menu: *mut AnyObject = msg_send![first, submenu];
+            if app_menu.is_null() {
+                return;
+            }
+            let title = TITLE.with(|t| ns_string(&t.borrow()));
+            let index: isize = msg_send![app_menu, indexOfItemWithTarget: std::ptr::null_mut::<AnyObject>(), andAction: sel!(ferryShowSettings:)];
+            if index >= 0 {
+                let item: *mut AnyObject = msg_send![app_menu, itemAtIndex: index];
+                let _: () = msg_send![item, setTitle: &*title];
+                return;
+            }
+            // only into the app menu Slint builds (About, separator, …); macOS sets its own short menu at launch,
+            // and inserting past its end throws an Objective-C exception that aborts the app
+            let items: isize = msg_send![app_menu, numberOfItems];
+            if items < 3 {
+                return;
+            }
+            let second: *mut AnyObject = msg_send![app_menu, itemAtIndex: 1isize];
+            let separator_at_1: bool = msg_send![second, isSeparatorItem];
+            if !separator_at_1 {
+                return;
+            }
+            let item: Retained<AnyObject> = msg_send![class!(NSMenuItem), new];
+            let _: () = msg_send![&*item, setTitle: &*title];
+            let _: () = msg_send![&*item, setAction: sel!(ferryShowSettings:)];
+            let _: () = msg_send![&*item, setKeyEquivalent: &*ns_string(",")];
+            let separator: Retained<AnyObject> = msg_send![class!(NSMenuItem), separatorItem];
+            // About, separator, here: Settings…, separator, Services …
+            let _: () = msg_send![app_menu, insertItem: &*item, atIndex: 2isize];
+            let _: () = msg_send![app_menu, insertItem: &*separator, atIndex: 3isize];
+        }
+    }
+
+    pub fn set_settings_title(title: &str) {
+        TITLE.with(|t| *t.borrow_mut() = title.to_string());
+        ensure();
+    }
+
+    pub fn install(on_about: Box<dyn Fn()>, on_settings: Box<dyn Fn()>, settings_title: &str) {
+        ABOUT.with(|h| *h.borrow_mut() = Some(on_about));
+        SETTINGS.with(|h| *h.borrow_mut() = Some(on_settings));
+        TITLE.with(|t| *t.borrow_mut() = settings_title.to_string());
+        let Some(cls) = AnyClass::get(c"NSApplication") else { return };
+        let imp = |f: ObjFn| unsafe { std::mem::transmute::<ObjFn, Imp>(f) };
+        for sel in [sel!(orderFrontStandardAboutPanel:), sel!(orderFrontStandardAboutPanelWithOptions:)] {
+            if let Some(m) = cls.instance_method(sel) {
+                // same signature (self, _cmd, one object) as the methods it replaces
+                unsafe { m.set_implementation(imp(about)) };
+            }
+        }
+        // the menu item's action; with no target it reaches NSApplication through the responder chain
+        unsafe { objc2::ffi::class_addMethod(cls as *const AnyClass as *mut AnyClass, sel!(ferryShowSettings:), imp(settings), c"v@:@".as_ptr()) };
+        if let Some(m) = cls.instance_method(sel!(setMainMenu:)) {
+            let original = unsafe { m.set_implementation(imp(set_main_menu)) };
+            ORIGINAL_SET_MAIN_MENU.store(original as usize, Ordering::Relaxed);
+        }
+        ensure();
+    }
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let settings: Settings = fs::read(dir().join("settings.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
     let app = AppWindow::new()?;
+    repaint_on_resize!(app);
     let _ = slint::select_bundled_translation(&settings.language);
     app.set_language(settings.language.clone().into());
     app.global::<Ferry>().set_dark(settings.dark);
     app.set_system_name(shorten(&scan::computer_name(), TITLE_CHARS).into());
-    set_menus(&app, &settings);
-    refresh(&app, &settings.language);
     let settings = Rc::new(RefCell::new(settings));
-    let help: Rc<RefCell<Option<HelpWindow>>> = Rc::default();
-    let about: Rc<RefCell<Option<AboutWindow>>> = Rc::default();
+    apply(&app.global::<Ferry>(), &settings.borrow());
+    { let s = settings.borrow(); refresh(&app, &s.language, &s.skip); }
+    let others = Others::default();
 
     app.global::<Ferry>().on_show_about({
-        let (weak, settings, about) = (app.as_weak(), settings.clone(), about.clone());
+        let (weak, settings, about) = (app.as_weak(), settings.clone(), others.about.clone());
         move || {
             let (weak, settings, about) = (weak.clone(), settings.clone(), about.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
@@ -259,6 +519,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 if about.is_none() {
                     *about = AboutWindow::new().ok();
                     if let Some(a) = about.as_ref() {
+                        repaint_on_resize!(a);
                         a.set_version(env!("CARGO_PKG_VERSION").into());
                         a.on_open_source(|| open_url("https://github.com/moritz-poth/mediafiles-ferry"));
                         a.on_open_license(|| {
@@ -269,46 +530,50 @@ fn main() -> Result<(), slint::PlatformError> {
                                 None => open_url("https://www.gnu.org/licenses/gpl-3.0.html"),
                             }
                         });
-                        // Menü des About-Fensters leitet an das Hauptfenster weiter
-                        let w = weak.clone();
-                        a.global::<Ferry>().on_select_language(move |i| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_language(i)));
-                        let w = weak.clone();
-                        a.global::<Ferry>().on_select_dark(move |d| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_dark(d)));
-                        let w = weak.clone();
-                        a.global::<Ferry>().on_show_help(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_help()));
+                        forward(&a.global::<Ferry>(), &weak);
                     }
                 }
                 if let Some(a) = about.as_ref() {
-                    let s = settings.borrow();
-                    a.global::<Ferry>().set_dark(s.dark);
-                    let (languages, appearance) = menu_models(&s);
-                    a.global::<Ferry>().set_languages(languages);
-                    a.global::<Ferry>().set_appearance(appearance);
+                    apply(&a.global::<Ferry>(), &settings.borrow());
                     let _ = a.show();
                 }
             });
         }
     });
 
+    app.global::<Ferry>().on_show_settings({
+        let (weak, settings, win) = (app.as_weak(), settings.clone(), others.settings.clone());
+        move || {
+            let (weak, settings, win) = (weak.clone(), settings.clone(), win.clone());
+            slint::Timer::single_shot(Duration::ZERO, move || {
+                let mut win = win.borrow_mut();
+                if win.is_none() {
+                    *win = SettingsWindow::new().ok();
+                    win.iter().for_each(|w| {
+                        repaint_on_resize!(w);
+                        forward(&w.global::<Ferry>(), &weak);
+                    });
+                }
+                if let Some(w) = win.as_ref() {
+                    apply(&w.global::<Ferry>(), &settings.borrow());
+                    let _ = w.show();
+                }
+            });
+        }
+    });
+
     app.global::<Ferry>().on_show_help({
-        let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
+        let (weak, settings, help) = (app.as_weak(), settings.clone(), others.help.clone());
         move || {
             let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let mut help = help.borrow_mut();
                 if help.is_none() {
                     *help = HelpWindow::new().ok();
-                    // Menü der Anleitung leitet an das Hauptfenster weiter
-                    if let Some(h) = help.as_ref() {
-                        let w = weak.clone();
-                        h.global::<Ferry>().on_select_language(move |i| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_language(i)));
-                        let w = weak.clone();
-                        h.global::<Ferry>().on_select_dark(move |d| w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_select_dark(d)));
-                        let w = weak.clone();
-                        h.global::<Ferry>().on_show_help(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_help()));
-                        let w = weak.clone();
-                        h.global::<Ferry>().on_show_about(move || w.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_about()));
-                    }
+                    help.iter().for_each(|h| {
+                        repaint_on_resize!(h);
+                        forward(&h.global::<Ferry>(), &weak);
+                    });
                 }
                 if let Some(h) = help.as_ref() {
                     update_help(h, &settings.borrow());
@@ -318,12 +583,12 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // Änderungen aus dem Menü erst nach dem Klick ausführen: Sie benennen die Menüeinträge um,
+    // Änderungen erst nach dem Klick ausführen: Sie benennen Menüeinträge um,
     // und das während der Menü-Verarbeitung von macOS führte zum Absturz.
     app.global::<Ferry>().on_select_language({
-        let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
+        let (weak, settings, others) = (app.as_weak(), settings.clone(), others.clone());
         move |index| {
-            let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
+            let (weak, settings, others) = (weak.clone(), settings.clone(), others.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let Some(app) = weak.upgrade() else { return };
                 let code = LANGUAGES.get(index as usize).map_or("en", |l| l.0);
@@ -331,36 +596,87 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_language(code.into());
                 settings.borrow_mut().language = code.to_string();
                 save_settings(&settings.borrow());
-                set_menus(&app, &settings.borrow());
-                help.borrow().iter().for_each(|h| update_help(h, &settings.borrow()));
-                refresh(&app, code);
+                apply_all(&app, &others, &settings.borrow());
+                { let s = settings.borrow(); refresh(&app, &s.language, &s.skip); }
             });
         }
     });
 
     app.global::<Ferry>().on_select_dark({
-        let (weak, settings, help) = (app.as_weak(), settings.clone(), help.clone());
+        let (weak, settings, others) = (app.as_weak(), settings.clone(), others.clone());
         move |dark| {
-            let (weak, settings, help) = (weak.clone(), settings.clone(), help.clone());
+            let (weak, settings, others) = (weak.clone(), settings.clone(), others.clone());
             slint::Timer::single_shot(Duration::ZERO, move || {
                 let Some(app) = weak.upgrade() else { return };
-                app.global::<Ferry>().set_dark(dark);
                 settings.borrow_mut().dark = dark;
                 save_settings(&settings.borrow());
-                set_menus(&app, &settings.borrow());
-                help.borrow().iter().for_each(|h| update_help(h, &settings.borrow()));
+                apply_all(&app, &others, &settings.borrow());
             });
         }
     });
 
+    // ── Updates ──
+    app.global::<Ferry>().on_refresh_update({
+        let (weak, settings, others) = (app.as_weak(), settings.clone(), others.clone());
+        move || weak.upgrade().iter().for_each(|a| apply_all(a, &others, &settings.borrow()))
+    });
+    app.global::<Ferry>().on_check_update({
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| check_for_update(a, &settings.borrow(), true))
+    });
+    app.global::<Ferry>().on_install_update({
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| install_update(a, &settings.borrow()))
+    });
+    app.global::<Ferry>().on_show_release({
+        let settings = settings.clone();
+        move || {
+            if let Some(r) = settings.borrow().update.lock().unwrap().available.as_ref() {
+                open_url(&r.page);
+            }
+        }
+    });
+    // leise kurz nach dem Start, dann alle 6 Stunden
+    slint::Timer::single_shot(Duration::from_secs(5), {
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| check_for_update(a, &settings.borrow(), false))
+    });
+    let update_timer = slint::Timer::default();
+    update_timer.start(slint::TimerMode::Repeated, Duration::from_secs(6 * 3600), {
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move || weak.upgrade().iter().for_each(|a| check_for_update(a, &settings.borrow(), false))
+    });
+
+    // Laufwerk fürs Scannen ein- oder ausschalten (gemerkt nach Namen)
+    app.on_toggle_volume({
+        let (weak, settings) = (app.as_weak(), settings.clone());
+        move |i| {
+            let Some(app) = weak.upgrade() else { return };
+            // connected drives come first in the list, in find_volumes order (refresh)
+            let Some(vol) = scan::find_volumes().get(i as usize).map(|p| key(&scan::volume_name(p))) else { return };
+            {
+                let mut s = settings.borrow_mut();
+                if s.skip.contains(&vol) {
+                    s.skip.retain(|x| *x != vol);
+                } else {
+                    s.skip.push(vol);
+                }
+            }
+            save_settings(&settings.borrow());
+            { let s = settings.borrow(); refresh(&app, &s.language, &s.skip); }
+        }
+    });
+
     app.on_scan({
-        let weak = app.as_weak();
+        let (weak, settings) = (app.as_weak(), settings.clone());
         move || {
             let app = weak.unwrap();
             app.set_scanning(true);
             app.set_warnings(0);
             app.set_error("".into());
-            let (vols, weak) = (scan::find_volumes(), weak.clone());
+            let skip = settings.borrow().skip.clone();
+            let vols: Vec<PathBuf> = scan::find_volumes().into_iter().filter(|p| !skip.contains(&key(&scan::volume_name(p)))).collect();
+            let weak = weak.clone();
             std::thread::spawn(move || {
                 let progress_to = weak.clone();
                 let result = scan::scan(&vols, false, Some(&dir().join("cache")), &mut |p| {
@@ -375,7 +691,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Ok(warnings) => app.set_warnings(warnings as i32),
                         Err(e) => app.set_error(shorten(&e.to_string(), LINE_CHARS).into()),
                     }
-                    refresh(&app, &current_language(&app));
+                    refresh(&app, &current_language(&app), &skip);
                 });
             });
         }
@@ -562,13 +878,14 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     app.on_back({
-        let (weak, compare, incoming) = (app.as_weak(), compare.clone(), incoming.clone());
+        let (weak, compare, incoming, settings) = (app.as_weak(), compare.clone(), incoming.clone(), settings.clone());
         move || {
             let app = weak.unwrap();
             *compare.borrow_mut() = None;
             *incoming.borrow_mut() = None;
             app.set_page(Page::Home);
-            refresh(&app, &current_language(&app));
+            let s = settings.borrow();
+            refresh(&app, &s.language, &s.skip);
         }
     });
 
@@ -577,6 +894,20 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         move || weak.upgrade().into_iter().for_each(|a| a.set_minutes_since_scan(minutes_since_scan()))
     });
+
+    #[cfg(target_os = "macos")]
+    let _menu_timer = {
+        let (w1, w2) = (app.as_weak(), app.as_weak());
+        mac_menu::install(
+            Box::new(move || w1.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_about())),
+            Box::new(move || w2.upgrade().into_iter().for_each(|a| a.global::<Ferry>().invoke_show_settings())),
+            &app.get_txt_settings_menu(),
+        );
+        // Slint rebuilds the app menu now and then; put Settings… back
+        let t = slint::Timer::default();
+        t.start(slint::TimerMode::Repeated, Duration::from_secs(2), mac_menu::ensure);
+        t
+    };
 
     app.run()
 }

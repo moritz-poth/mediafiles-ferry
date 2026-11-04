@@ -85,8 +85,6 @@ msgstr "Hell"
 msgid "Help"
 msgstr "Hilfe"
 
-msgid "Manual"
-msgstr "Anleitung"
 
 msgid "MediaFiles Ferry Manual"
 msgstr "MediaFiles Ferry Anleitung"
@@ -258,3 +256,54 @@ msgstr "ANFORDERUNG VON"
 
 msgid "Request from {}"
 msgstr "Anforderung vom {}"
+
+msgid "Settings…"
+msgstr "Einstellungen…"
+
+msgid "SETTINGS"
+msgstr "EINSTELLUNGEN"
+
+msgid "Dark appearance"
+msgstr "Dunkle Darstellung"
+
+msgid "UPDATES"
+msgstr "UPDATES"
+
+msgid "Version {}"
+msgstr "Version {}"
+
+msgid "Check for updates"
+msgstr "Nach Updates suchen"
+
+msgid "Version {} is available."
+msgstr "Version {} ist verfügbar."
+
+msgid "What's new"
+msgstr "Neuigkeiten"
+
+msgid "Install update"
+msgstr "Update installieren"
+
+msgid "Checking for updates…"
+msgstr "Suche nach Updates…"
+
+msgid "MediaFiles Ferry is up to date."
+msgstr "MediaFiles Ferry ist aktuell."
+
+msgid "Installing the update – MediaFiles Ferry restarts by itself."
+msgstr "Update wird installiert – MediaFiles Ferry startet von selbst neu."
+
+msgid "Could not check for updates. Check the internet connection and try again."
+msgstr "Nach Updates suchen hat nicht geklappt. Prüfe die Internetverbindung und versuche es noch einmal."
+
+msgid "The update could not be downloaded. Check the internet connection and try again."
+msgstr "Das Update ließ sich nicht laden. Prüfe die Internetverbindung und versuche es noch einmal."
+
+msgid "The downloaded update is damaged. Please try again later or download it from GitHub."
+msgstr "Das geladene Update ist beschädigt. Versuche es später noch einmal oder lade es von GitHub."
+
+msgid "MediaFiles Ferry could not replace itself. Move it to the Applications folder, or download the update from GitHub. Details: {}"
+msgstr "MediaFiles Ferry konnte sich nicht ersetzen. Lege die App in den Ordner Programme oder lade das Update von GitHub. Details: {}"
+
+msgid "The update is installed. Quit MediaFiles Ferry and open it again to finish."
+msgstr "Das Update ist installiert. Beende MediaFiles Ferry und öffne es erneut, um abzuschließen."

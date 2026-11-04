@@ -25,7 +25,7 @@ Folder names can be anything, e.g. `1`, `Avid8.1` or `Mac Studio.1`.
 
 ## Scan
 
-Click **Scan**. Ferry finds all connected drives with `Avid MediaFiles/MXF` and computes a checksum for every MXF file.
+Click **Scan**. Ferry finds all connected drives with `Avid MediaFiles/MXF` and computes a checksum for every MXF file. The switch next to a drive decides whether it is scanned – switch off e.g. backup drives that should not be in the manifest. New drives are switched on; Ferry remembers the choice.
 
 - **The first scan takes a while**, because every file is read once.
 - **Later scans are fast:** Ferry remembers the checksums and only reads new or changed files.
@@ -100,4 +100,8 @@ Everything Ferry must not do itself ends up in the task list (also in `Tasks.txt
 
 ## Settings
 
-In the **Settings** menu you can choose the language and the appearance (dark or light). **Help → About MediaFiles Ferry** shows the version and the license.
+**MediaFiles Ferry → Settings…** (⌘,) sets the appearance (light or dark) and the language. **MediaFiles Ferry → About MediaFiles Ferry** shows the version and the license.
+
+## Updates
+
+Ferry looks for a new version on GitHub shortly after starting and every 6 hours; **Settings… → Check for updates** looks right away. A new version shows at the top of the main window: **What's new** opens the release notes, **Install update** downloads it, checks that it is complete and unchanged, puts the old version in the Trash and restarts Ferry.

@@ -15,6 +15,9 @@ serde_json = "1.0.154"
 slint = "1.18.1"
 unicode-normalization = "0.1.26"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.5"
+
 [[bin]]
 name = "ferry"
 path = "src/main.rs"

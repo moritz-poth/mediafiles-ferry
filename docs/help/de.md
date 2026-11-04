@@ -25,7 +25,7 @@ Ordnernamen sind beliebig, z. B. `1`, `Avid8.1` oder `Mac Studio.1`.
 
 ## Scannen
 
-Auf **Scannen** klicken. Ferry findet alle angeschlossenen Laufwerke mit `Avid MediaFiles/MXF` und berechnet für jede MXF-Datei eine Prüfsumme.
+Auf **Scannen** klicken. Ferry findet alle angeschlossenen Laufwerke mit `Avid MediaFiles/MXF` und berechnet für jede MXF-Datei eine Prüfsumme. Der Schalter neben einem Laufwerk bestimmt, ob es gescannt wird – schalte z. B. Backup-Laufwerke aus, die nicht ins Manifest sollen. Neue Laufwerke sind eingeschaltet; Ferry merkt sich die Auswahl.
 
 - **Der erste Scan dauert**, weil jede Datei einmal gelesen wird.
 - **Weitere Scans sind schnell:** Ferry merkt sich die Prüfsummen und liest nur neue oder veränderte Dateien.
@@ -100,4 +100,8 @@ Was Ferry nicht selbst erledigen darf, landet in der Aufgabenliste (auch in `Auf
 
 ## Einstellungen
 
-Im Menü **Einstellungen** wählst du die Sprache und die Darstellung (dunkel oder hell). **Hilfe → Über MediaFiles Ferry** zeigt Version und Lizenz.
+**MediaFiles Ferry → Einstellungen…** (⌘,) stellt die Darstellung (hell oder dunkel) und die Sprache ein. **MediaFiles Ferry → Über MediaFiles Ferry** zeigt Version und Lizenz.
+
+## Updates
+
+Ferry sucht kurz nach dem Start und alle 6 Stunden auf GitHub nach einer neuen Version; **Einstellungen… → Nach Updates suchen** sucht sofort. Eine neue Version erscheint oben im Hauptfenster: **Neuigkeiten** öffnet die Versionshinweise, **Update installieren** lädt sie, prüft, dass sie vollständig und unverändert ist, legt die alte Version in den Papierkorb und startet Ferry neu.

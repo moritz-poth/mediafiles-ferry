@@ -3,6 +3,15 @@ pub mod collect;
 pub mod plan;
 pub mod request;
 pub mod scan;
+pub mod update;
+
+/// This app on GitHub and in its Info.plist (the key is written by scripts/build-mac-app.sh).
+pub const UPDATE_APP: update::App = update::App {
+    repo: "moritz-poth/mediafiles-ferry",
+    name: "MediaFiles Ferry",
+    bundle_id: "io.github.moritz-poth.mediafiles-ferry",
+    release_key: "MediaFilesFerryRelease",
+};
 
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};

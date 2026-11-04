@@ -8,16 +8,13 @@ export struct VolumeRow {
     name: string,
     files: string,
     online: bool,
+    // wird beim Scannen mitgenommen (nur angeschlossene Laufwerke)
+    selected: bool,
 }
 
 export struct HelpBlock {
     heading: string,
     body: styled-text,
-}
-
-export struct MenuChoice {
-    title: string,
-    checked: bool,
 }
 
 // Feste Breite für alle Sprachen; lange Namen kürzt der Rust-Teil in der Mitte ("Anfang…Ende").
@@ -121,13 +118,154 @@ component FerryButton {
 // Gemeinsame Basis aller Fenster: Schrift, Farben und Menü. Auf dem Mac gehört die Menüleiste zum aktiven Fenster,
 // ohne eigenes Menü wären die Einträge weg, sobald die Anleitung vorne ist.
 export global Ferry {
-    in property <[MenuChoice]> languages;
-    in property <[bool]> appearance;
+    in property <[string]> language-names;
+    in property <int> language-index;
     in property <bool> dark: true;
     callback select-language(int);
     callback select-dark(bool);
     callback show-help();
     callback show-about();
+    callback show-settings();
+    // Updates (src/update.rs): laufende Version, neuere Version ("" = keine), Zustand 0 nichts, 1 prüft, 2 aktuell,
+    // 3 installiert, 4 Fehler; Fehlerart 0 Prüfen, 1 Laden, 2 beschädigt, 3 Ersetzen, 4 Neustart
+    in property <string> version;
+    in property <string> update-version;
+    in property <int> update-state;
+    in property <int> update-error;
+    in property <string> update-details;
+    callback check-update();
+    callback install-update();
+    callback show-release();
+    // Rust: Update-Zustand hat sich geändert, alle Fenster neu setzen
+    callback refresh-update();
+    // Größe des Fensters hat sich geändert (jedes Fenster hat sein eigenes Ferry)
+    callback resized();
+}
+
+component Switch inherits Rectangle {
+    in property <bool> on;
+    in property <string> label;
+    callback toggled;
+    width: 34px;
+    height: 20px;
+    border-radius: 10px;
+    background: root.on ? Theme.primary : Theme.line;
+    accessible-role: switch;
+    accessible-label: root.label;
+    accessible-checked: root.on;
+    accessible-action-default => { root.toggled(); }
+    Rectangle {
+        x: root.on ? parent.width - self.width - 2px : 2px;
+        y: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: root.on ? Theme.on-primary : (Theme.dark ? Theme.muted : Theme.background);
+        animate x { duration: 150ms; easing: ease-out; }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+component Dropdown {
+    in property <[string]> items;
+    in property <int> current;
+    callback selected(int);
+    height: 26px;
+    // so breit wie der Inhalt, wie Mountpoints .fixedSize()
+    min-width: row.preferred-width;
+    max-width: row.preferred-width;
+    horizontal-stretch: 0;
+    accessible-role: combobox;
+    accessible-value: root.items[root.current];
+    accessible-action-default => { menu.show({ x: 0, y: root.height + 4px }); }
+    Rectangle {
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: Theme.line;
+        background: touch.pressed ? Theme.text.with-alpha(0.12) : touch.has-hover ? Theme.text.with-alpha(0.06) : transparent;
+    }
+    row := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 6px;
+        Text {
+            text: root.items[root.current];
+            font-size: 12px;
+            vertical-alignment: center;
+            color: Theme.text;
+        }
+        VerticalLayout {
+            alignment: center;
+            Path {
+                width: 8px;
+                height: 5px;
+                commands: "M 0 0 L 4 4 L 8 0";
+                stroke: Theme.text;
+                stroke-width: 1.5px;
+            }
+        }
+    }
+    menu := ContextMenuArea {
+        Menu {
+            for item[i] in root.items: MenuItem {
+                title: item;
+                enabled: i != root.current;
+                activated => { root.selected(i); }
+            }
+        }
+        touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { menu.show({ x: 0, y: root.height + 4px }); }
+        }
+    }
+}
+
+// Zustand der Updates als Text (Einstellungen und Banner)
+component UpdateStatus inherits Text {
+    width: Metrics.content-width;
+    wrap: word-wrap;
+    font-size: 12px;
+    visible: self.text != "";
+    height: self.visible ? self.preferred-height : 0;
+    color: Ferry.update-state == 4 ? Theme.error : Theme.muted;
+    text: Ferry.update-state == 1 ? @tr("Checking for updates…")
+        : Ferry.update-state == 2 ? @tr("MediaFiles Ferry is up to date.")
+        : Ferry.update-state == 3 ? @tr("Installing the update – MediaFiles Ferry restarts by itself.")
+        : Ferry.update-state != 4 ? ""
+        : Ferry.update-error == 0 ? @tr("Could not check for updates. Check the internet connection and try again.")
+        : Ferry.update-error == 1 ? @tr("The update could not be downloaded. Check the internet connection and try again.")
+        : Ferry.update-error == 2 ? @tr("The downloaded update is damaged. Please try again later or download it from GitHub.")
+        : Ferry.update-error == 3 ? @tr("MediaFiles Ferry could not replace itself. Move it to the Applications folder, or download the update from GitHub. Details: {}", Ferry.update-details)
+        : @tr("The update is installed. Quit MediaFiles Ferry and open it again to finish.");
+}
+
+// Neue Version: Hinweis mit "Neuigkeiten" und "Update installieren" (oben im Hauptfenster und in den Einstellungen)
+component UpdateOffer inherits VerticalLayout {
+    spacing: 10px;
+    Text {
+        width: Metrics.content-width;
+        wrap: word-wrap;
+        text: @tr("Version {} is available.", Ferry.update-version);
+        font-weight: 600;
+        color: Theme.text;
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: start;
+        FerryButton {
+            text: @tr("What's new");
+            clicked => { Ferry.show-release(); }
+        }
+        FerryButton {
+            text: @tr("Install update");
+            primary: true;
+            enabled: Ferry.update-state != 3;
+            clicked => { Ferry.install-update(); }
+        }
+    }
 }
 
 component FerryWindow inherits Window {
@@ -143,39 +281,17 @@ component FerryWindow inherits Window {
     changed dark => {
         Palette.color-scheme = root.dark ? ColorScheme.dark : ColorScheme.light;
     }
+    // Fenster, deren Höhe aus dem Inhalt kommt, wachsen; auf dem Mac malt Slint den neuen Bereich erst nach einem
+    // weiteren Redraw – Rust zeichnet nach jeder Größenänderung nach (repaint_on_resize)
+    changed height => { Ferry.resized(); }
 
-    // Die Einträge kommen als Modell aus Rust und werden nach jeder Auswahl neu gesetzt, damit die Häkchen stimmen.
+    // About und Settings… stehen im App-Menü (mac_menu in app.rs), nicht hier
     MenuBar {
-        Menu {
-            title: @tr("Settings");
-            Menu {
-                title: @tr("Language");
-                for l[i] in Ferry.languages: MenuItem {
-                    title: l.title;
-                    checkable: true;
-                    checked: l.checked;
-                    activated => { Ferry.select-language(i); }
-                }
-            }
-            Menu {
-                title: @tr("Appearance");
-                for checked[i] in Ferry.appearance: MenuItem {
-                    title: i == 0 ? @tr("Dark") : @tr("Light");
-                    checkable: true;
-                    checked: checked;
-                    activated => { Ferry.select-dark(i == 0); }
-                }
-            }
-        }
         Menu {
             title: @tr("Help");
             MenuItem {
-                title: @tr("Manual");
+                title: @tr("MediaFiles Ferry Manual");
                 activated => { Ferry.show-help(); }
-            }
-            MenuItem {
-                title: @tr("About MediaFiles Ferry");
-                activated => { Ferry.show-about(); }
             }
         }
     }
@@ -294,6 +410,7 @@ export component AppWindow inherits FerryWindow {
 
     in property <string> system-name;
     in property <[VolumeRow]> volumes;
+    in property <int> selected-count;
     in property <int> minutes-since-scan: -1;
     in property <bool> scanning;
     in property <string> progress;
@@ -331,6 +448,7 @@ export component AppWindow inherits FerryWindow {
         : root.result-kind == 4 ? @tr("Ask {} for a new delivery or copy the folder again.", root.delivery-from)
         : @tr("Scan again so that the manifest is up to date.");
     // Texte, die der Rust-Teil braucht
+    out property <string> txt-settings-menu: @tr("Settings…");
     out property <string> txt-choose: @tr("Choose…");
     out property <string> txt-skip: @tr("Don't send");
     out property <string> txt-same-system: @tr("this manifest is from this system");
@@ -346,6 +464,7 @@ export component AppWindow inherits FerryWindow {
     in property <bool> can-import;
 
     callback scan();
+    callback toggle-volume(int);
     callback save-manifest();
     callback open-manifest();
     callback import-delivery();
@@ -380,6 +499,12 @@ export component AppWindow inherits FerryWindow {
         spacing: Metrics.spacing;
 
         Headline { }
+        if Ferry.update-version != "": VerticalLayout {
+            spacing: 10px;
+            UpdateOffer { }
+            UpdateStatus { }
+            Divider { }
+        }
 
         // ── Start ──────────────────────────────────────────────
         if root.page == Page.home: VerticalLayout {
@@ -398,9 +523,9 @@ export component AppWindow inherits FerryWindow {
                     overflow: elide;
                     color: Theme.muted;
                 }
-                for v in root.volumes: HorizontalLayout {
+                for v[i] in root.volumes: HorizontalLayout {
                     spacing: 10px;
-                    height: Metrics.line;
+                    height: 24px;
                     VerticalLayout {
                         alignment: center;
                         Rectangle {
@@ -415,12 +540,22 @@ export component AppWindow inherits FerryWindow {
                         horizontal-stretch: 1;
                         overflow: elide;
                         vertical-alignment: center;
-                        color: v.online ? Theme.text : Theme.muted;
+                        color: v.online && v.selected ? Theme.text : Theme.muted;
                     }
                     Text {
                         text: v.files == "" ? @tr("not scanned yet") : @tr("{} files", v.files);
                         vertical-alignment: center;
                         color: v.files == "" ? Theme.faint : Theme.muted;
+                    }
+                    // nur angeschlossene Laufwerke lassen sich wählen; Platzhalter hält die Spalte gerade
+                    VerticalLayout {
+                        alignment: center;
+                        width: 34px;
+                        if v.online: Switch {
+                            on: v.selected;
+                            label: v.name;
+                            toggled => { root.toggle-volume(i); }
+                        }
                     }
                 }
                 VerticalLayout {
@@ -440,7 +575,7 @@ export component AppWindow inherits FerryWindow {
                     FerryButton {
                         text: @tr("Scan");
                         primary: true;
-                        enabled: !root.scanning && root.volumes.length > 0;
+                        enabled: !root.scanning && root.selected-count > 0;
                         clicked => { root.scan(); }
                     }
                     FerryButton {
@@ -833,6 +968,88 @@ export component AboutWindow inherits FerryWindow {
                 font-size: 11px;
                 color: Theme.faint;
             }
+        }
+    }
+}
+
+// Einstellungen (App-Menü → Settings…): Darstellung, Sprache, Updates
+export component SettingsWindow inherits FerryWindow {
+    title: @tr("Settings");
+    width: Metrics.window-width;
+    height: settings.preferred-height;
+
+    settings := VerticalLayout {
+        padding: Metrics.padding;
+        spacing: Metrics.spacing;
+        Headline { }
+        Section {
+            title: @tr("SETTINGS");
+            HorizontalLayout {
+                spacing: 10px;
+                height: 28px;
+                Text {
+                    text: @tr("Appearance");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                Text {
+                    text: @tr("Light");
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    color: Ferry.dark ? Theme.faint : Theme.text;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        on: Ferry.dark;
+                        label: @tr("Dark appearance");
+                        toggled => { Ferry.select-dark(!Ferry.dark); }
+                    }
+                }
+                Text {
+                    text: @tr("Dark");
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    color: Ferry.dark ? Theme.text : Theme.faint;
+                }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Language");
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Dropdown {
+                        items: Ferry.language-names;
+                        current: Ferry.language-index;
+                        selected(i) => { Ferry.select-language(i); }
+                    }
+                }
+            }
+        }
+        Section {
+            title: @tr("UPDATES");
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: @tr("Version {}", Ferry.version);
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    color: Theme.text;
+                }
+                FerryButton {
+                    text: @tr("Check for updates");
+                    enabled: Ferry.update-state != 1 && Ferry.update-state != 3;
+                    clicked => { Ferry.check-update(); }
+                }
+            }
+            if Ferry.update-version != "": UpdateOffer { }
+            UpdateStatus { }
         }
     }
 }
