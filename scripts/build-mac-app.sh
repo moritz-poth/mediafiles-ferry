@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 NAME="MediaFiles Ferry"
 RELEASE=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)   # e.g. 1.0.0-beta.1
 VERSION=${RELEASE%%-*}                                                  # numbers only for macOS
-BUILD=1                                                                 # bump with every release
+BUILD=2                                                                 # bump with every release
 APP="dist/$NAME.app"
 
 cargo build --release --bin ferry-app --target aarch64-apple-darwin

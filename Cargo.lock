@@ -2619,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "mediafiles-ferry"
-version = "1.0.0-beta.1"
+version = "1.0.0-beta.2"
 dependencies = [
  "blake3",
  "chrono",
