@@ -1,5 +1,5 @@
 // Oberfläche von MediaFiles Ferry. Texte stehen auf Englisch in @tr(); Übersetzungen liegen in translations/.
-import { Palette, ComboBox } from "std-widgets.slint";
+import { Palette } from "std-widgets.slint";
 import "fonts/JetBrainsMono-Regular.ttf";
 import "fonts/JetBrainsMono-SemiBold.ttf";
 import "fonts/JetBrainsMono-Bold.ttf";
@@ -174,11 +174,13 @@ component Switch inherits Rectangle {
 component Dropdown {
     in property <[string]> items;
     in property <int> current;
+    // höchstens so breit (lange Laufwerksnamen werden in der Mitte… gekürzt)
+    in property <length> limit: 10000px;
     callback selected(int);
     height: 26px;
     // so breit wie der Inhalt, wie Mountpoints .fixedSize()
-    min-width: row.preferred-width;
-    max-width: row.preferred-width;
+    min-width: min(row.preferred-width, root.limit);
+    max-width: min(row.preferred-width, root.limit);
     horizontal-stretch: 0;
     accessible-role: combobox;
     accessible-value: root.items[root.current];
@@ -196,6 +198,7 @@ component Dropdown {
         Text {
             text: root.items[root.current];
             font-size: 12px;
+            overflow: elide;
             vertical-alignment: center;
             color: Theme.text;
         }
@@ -396,12 +399,14 @@ component MapList inherits VerticalLayout {
             vertical-alignment: center;
             color: Theme.muted;
         }
-        ComboBox {
-            horizontal-stretch: 1;
-            model: r.options;
-            current-index: r.selected;
-            selected => { root.changed(i, self.current-index); }
+        Dropdown {
+            // the rest of the row: name 150 px, arrow and two gaps
+            limit: Metrics.content-width - 150px - 40px;
+            items: r.options;
+            current: r.selected;
+            selected(index) => { root.changed(i, index); }
         }
+        Rectangle { horizontal-stretch: 1; }
     }
 }
 
