@@ -16,10 +16,15 @@ Updates install from within the app (Settings… → Check for updates, or the n
 
 1. **Scan** each system. Ferry records every MXF file with a checksum and saves a *manifest* – a list of files, no media.
 2. **Exchange** the manifests, e.g. by e-mail or USB stick.
-3. **Compare & collect:** open the other system's manifest. Ferry shows what is missing over there and collects it into a delivery folder.
-4. **Verify & import** the delivery on the other system. Ferry verifies every file first and only imports a complete delivery.
+3. **Compare:** open the other system's manifest. Ferry shows what is missing over there – drives with other names are assigned once, folders that exist on both sides are merged or renamed.
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/compare-dark.png"><img align="top" src="assets/screenshots/compare-light.png" width="420" alt="Compare with another system"></picture>&nbsp;&nbsp;<picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/result-dark.png"><img align="top" src="assets/screenshots/result-light.png" width="420" alt="Delivery ready"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/compare-dark.png"><img src="assets/screenshots/compare-light.png" width="420" alt="Compare with another system: assign drives, folders on both sides, files to collect"></picture></p>
+
+4. **Collect:** Ferry copies the missing files into a delivery folder and writes the task list for everything that has to be done by hand.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/result-dark.png"><img src="assets/screenshots/result-light.png" width="420" alt="Delivery ready, with the task list"></picture></p>
+
+5. **Verify & import** the delivery on the other system. Ferry verifies every file first and only imports a complete delivery.
 
 **Requests from [MediaFiles Check](https://github.com/moritz-poth/mediafiles-check):** MediaFiles Check lists the media files the bins of Avid projects need that a system is missing and saves them as a request. Open it with **Open manifest…** on the system that has the media: Ferry finds the files through the Avid databases and collects them into a normal delivery.
 
