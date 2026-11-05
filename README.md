@@ -26,7 +26,7 @@ Updates install from within the app (Settings… → Check for updates, or the n
 
 5. **Verify & import** the delivery on the other system. Ferry verifies every file first and only imports a complete delivery.
 
-**Requests from [MediaFiles Check](https://github.com/moritz-poth/mediafiles-check):** MediaFiles Check lists the media files the bins of Avid projects need that a system is missing and saves them as a request. Open it with **Open manifest…** on the system that has the media: Ferry finds the files through the Avid databases and collects them into a normal delivery.
+**Tip:** with [MediaFiles Check](https://github.com/moritz-poth/mediafiles-check), rebuilding the Avid databases after copying is much easier – it takes most of the manual work off your hands.
 
 ## Safe by design
 

@@ -47,15 +47,6 @@ Danach auf **Manifest sichern…** klicken und die Datei an das andere System sc
 
 Ferry kopiert jede Datei mit Prüfsummen-Kontrolle in einen neuen Ordner wie `261102-1830_Mac Studio_to_MacBook`. Darin liegt auch `Aufgaben.txt` mit einer Anleitung zum Einspielen von Hand. Wird das Sammeln unterbrochen, macht ein erneutes Sammeln dort weiter.
 
-## Anforderungen aus MediaFiles Check
-
-MediaFiles Check findet Mediendateien, die die Bins von Avid-Projekten brauchen, die das System aber nicht hat, und sichert sie als Anforderung (`…_Request.ferry`). Auf dem System, das die Medien hat:
-
-1. Zuerst dieses System scannen, damit dein Manifest aktuell ist.
-2. Auf **Manifest öffnen…** klicken und die Anforderung wählen – Ferry erkennt sie von selbst.
-3. Ferry sucht die angeforderten Dateien in den Avid-Datenbanken seiner Laufwerke und zeigt, wie viele es gefunden hat. Dateien, die es nicht findet, stehen in einer Aufgabe zusammen mit den Clips, die sie nutzen.
-4. Auf **Sammeln…** klicken. Die Lieferung ist eine ganz normale: Spiele sie auf dem anfordernden System mit **Prüfen & einspielen** ein. Es werden nur Mediendateien geschickt, nie eine Datenbank – die Aufgabenliste nennt die Ordner, die dort eine neue Datenbank brauchen.
-
 ## Prüfen und einspielen
 
 1. Media Composer beenden.
