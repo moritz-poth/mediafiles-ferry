@@ -98,6 +98,8 @@ Everything Ferry must not do itself ends up in the task list (also in `Tasks.txt
 - **Same name, different content** – two different files share a name. Check which one is right.
 - **Duplicate files** – the same file exists in several folders. Not an error, but it costs space.
 
+**Rebuilding databases with MediaFiles Check:** after copying, check the drives with [MediaFiles Check](https://github.com/moritz-poth/mediafiles-check). It shows which folders have a database that does not match their files. **Rename for Media Composer…** then renames all of them in one go to names Media Composer rebuilds (a number, or computer name and number). Let Media Composer scan the drives, quit it, and **Rename back** gives every folder its original name again.
+
 ## Importing by hand
 
 1. Quit Media Composer.

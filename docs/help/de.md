@@ -98,6 +98,8 @@ Was Ferry nicht selbst erledigen darf, landet in der Aufgabenliste (auch in `Auf
 - **Gleicher Name, anderer Inhalt** – zwei verschiedene Dateien heißen gleich. Prüfen, welche richtig ist.
 - **Doppelte Dateien** – dieselbe Datei liegt in mehreren Ordnern. Kein Fehler, kostet aber Platz.
 
+**Datenbanken mit MediaFiles Check neu aufbauen:** Prüfe die Laufwerke nach dem Kopieren mit [MediaFiles Check](https://github.com/moritz-poth/mediafiles-check). Es zeigt, in welchen Ordnern die Datenbank nicht zu den Dateien passt. **Für Media Composer umbenennen…** benennt sie dann alle in einem Zug so um, dass Media Composer ihre Datenbanken neu aufbaut (eine Zahl bzw. Rechnername und Zahl). Lass Media Composer die Laufwerke scannen, beende es, und **Zurückbenennen** gibt jedem Ordner wieder seinen Originalnamen.
+
 ## Von Hand einspielen
 
 1. Media Composer schließen.
